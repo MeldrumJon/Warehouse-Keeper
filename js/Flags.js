@@ -19,6 +19,22 @@ export default class Flags {
         let idx = y * this.w + x;
         this.a[idx] &= ~(flags);
     }
+
+    toString() {
+        let str = '';
+        let h = ~~(this.a.length/this.w);
+        for (let j = 0; j < h; ++j) {
+            if (j) { str += '\r\n'; }
+            for (let i = 0; i < this.w; ++i) {
+                if (i) { str += ' '; }
+                let idx = j * this.w + i;
+                let ns = this.a[idx].toString(16);
+                ns = '0'.repeat(2 - ns.length) + ns;
+                str += ns;
+            }
+        }
+        return str;
+    }
 }
 
 export function test() {

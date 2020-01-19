@@ -2,15 +2,15 @@ import Sokoban from './Sokoban.js';
 
 function main() {
     let puzzle = new Sokoban(
-`#### 
-# .#  
+`####
+# .#
 #  ###
 #*@  #
 #  $ #
 #  ###
 ####  `
     );
-    let sol = Sokoban.solve(puzzle);
+    let sol = Sokoban.solve(puzzle, 1000);
     console.log(sol);
 
     const elGame = document.getElementById('game');
@@ -28,8 +28,10 @@ function main() {
         else if (evt.keyCode === 40) { // down
             puzzle.move(0, 1);
         }
+        else if (evt.keyCode === 85) {
+            puzzle.undo();
+        }
         elGame.innerText = puzzle.toString();
-                    console.log(puzzle.toString());
     });
 }
 
