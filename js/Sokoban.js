@@ -1,6 +1,6 @@
-import Zobrist from './Zobrist.js';
+import PCG32 from './PCG32.js';
 import {TypedTranspositionTable as TranspositionTable} from './TranspositionTable.js';
-import Flags from './Flags.js';
+import * as bv from './bitVector.js';
 
 const MEMPTY = 0;
 const MWALL = 1;
@@ -17,16 +17,22 @@ const C2MAP = Object.freeze({
     ' ': 3, // Floor
 });
 
-const DXS = Object.freeze([-1, 1, 0, 0]);
-const DYS = Object.freeze([0, 0, -1, 1]);
-const DMS = Object.freeze(['l', 'r', 'u', 'd']);
+const DMS = Object.freeze(['u', 'd', 'l', 'r']);
+const DXS = Object.freeze([0,  0, -1, 1]);
+const DYS = Object.freeze([-1, 1,  0, 0]);
 
-function _dir(dx, dy) {
-    return (dx < 0) ? 'l'
-            : (dx > 0) ? 'r'
-            : (dy < 0) ? 'u'
-            : (dy > 0) ? 'd'
-            : '';
+const PUSH_SHIFT = 30;
+const PUSH_UP = 0x0 << PUSH_SHIFT;
+const PUSH_DOWN = 0x1 << PUSH_SHIFT;
+const PUSH_LEFT = 0x2 << PUSH_SHIFT;
+const PUSH_RIGHT = 0x3 << PUSH_SHIFT;
+const PUSH_IDX_MASK = ~(PUSH_RIGHT);
+const PUSH_DIRS = Object.freeze([PUSH_UP, PUSH_DOWN, PUSH_LEFT, PUSH_RIGHT]);
+
+const DDIRS = ['u', 'l', '', 'r', 'd'];
+function _DIR(dx, dy) {
+    const i = dy*2 + dx + 2;
+    return DDIRS[i];
 }
 
 export default class Sokoban {
@@ -35,33 +41,11 @@ export default class Sokoban {
         return this.map[idx];
     }
 
-    _getBox(x, y) {
-        for (let i = 0, len = this.boxXs.length; i < len; ++i) {
-            if (this.boxXs[i] === x && this.boxYs[i] === y) {
-                return i;
-            }
-        }
-        return null;
-    }
-
-    _hasGoal(x, y) {
-        for (let i = 0, len = this.boxXs.length; i < len; ++i) {
-            if (this.goalXs[i] === x && this.goalYs[i] === y) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    _hasPlayer(x, y) {
-        return (this.playerX === x && this.playerY === y);
-    }
-
     _updateNormalization() {
         let normX = this.playerX;
         let normY = this.playerY;
 
-        let visited = new Uint8Array(this.map.length);
+        const visited = new Uint8Array(this.map.length);
         let xs = [normX];
         let ys = [normY];
         while (xs.length) {
@@ -71,14 +55,14 @@ export default class Sokoban {
                 let i = xs[k]
                 let j = ys[k];
                 let idx = j*this.w + i;
-                let code = this.map[idx];
-                // Coordinate is unreachable
-                if (!code || code === MWALL || this._getBox(i, j) !== null) {
-                    continue;
-                }
                 // Already checked this point
                 if (visited[idx]) { continue; }
                 visited[idx] = 1;
+                // Coordinate is unreachable
+                let code = this.map[idx];
+                if (!code || code === MWALL || bv.test(this.boxBV, idx)) {
+                    continue;
+                }
                 // Update normalized position
                 if (i < normX) {
                     normX = i;
@@ -87,43 +71,44 @@ export default class Sokoban {
                     normY = j;
                 }
                 // Test surrounding points
-                nxs.push(i+1); nys.push(j);
-                nxs.push(i-1); nys.push(j);
-                nxs.push(i); nys.push(j+1);
-                nxs.push(i); nys.push(j-1);
+                for (let d = 0; d < 4; ++d) {
+                    nxs.push(i+DXS[d]);
+                    nys.push(j+DYS[d]);
+                }
             }
             xs = nxs;
             ys = nys;
         }
-        this.normX = normX;
-        this.normY = normY;
+        this.normIdx = normY*this.w + normX;
     }
 
-    _generateLiveSquares() {
-        let lsquares = new Uint8Array(this.w*this.h);
-        for (let g = 0, len = this.goalXs.length; g < len; ++g) {
-            let xs = [this.goalXs[g]];
-            let ys = [this.goalYs[g]];
+    static _generateLiveSquares(sok) {
+        const lSquares = new Uint8Array(sok.w*sok.h);
+        const totalSqs = sok.map.length;
+        for (let g = 0; g < totalSqs; ++g) {
+            if (!bv.test(sok.goalBV, g)) { continue; }
+            let xs = [g % sok.w];
+            let ys = [~~(g / sok.w)];
             while (xs.length) {
                 let nxs = [];
                 let nys = [];
                 for (let k = 0, len = xs.length; k < len; ++k) {
                     let x = xs[k];
                     let y = ys[k];
-                    let idx = y*this.w + x;
+                    let idx = y*sok.w + x;
 
-                    if (lsquares[idx]) { continue; }
-                    lsquares[idx] = 1;
+                    if (lSquares[idx]) { continue; }
+                    lSquares[idx] = 1;
 
                     for (let d = 0; d < 4; ++d) {
                         let dx = DXS[d];
                         let dy = DYS[d];
                         let nx = x+dx;
                         let ny = y+dy;
-                        let ncode = this._map(nx, ny);
+                        let ncode = sok._map(nx, ny);
                         let nnx = nx+dx;
                         let nny = ny+dy;
-                        let nncode = this._map(nnx, nny);
+                        let nncode = sok._map(nnx, nny);
                         // is pullable onto nx, ny
                         if (ncode && (ncode === MFLOOR || ncode === MGOAL)
                                 && nncode && (nncode === MFLOOR || nncode === MGOAL)) {
@@ -136,7 +121,7 @@ export default class Sokoban {
                 ys = nys;
             }
         }
-        return lsquares;
+        return lSquares;
     }
     
     constructor(str) {
@@ -150,15 +135,14 @@ export default class Sokoban {
                 this.w = len;
             }
         }
+        const totalSquares = this.w*this.h;
         // Convert puzzle to state representation
         this.playerX = -1;
         this.playerY = -1;
-        this.boxXs = [];
-        this.boxYs = [];
-        this.goalXs = [];
-        this.goalYs = [];
+        this.boxBV = bv.create(totalSquares);
+        this.goalBV = bv.create(totalSquares);
 
-        this.map = new Uint8Array(this.w*this.h);
+        this.map = new Uint8Array(totalSquares);
         let idx = 0;
         for (let j = 0; j < this.h; ++j) {
             for (let i = 0; i < this.w; ++i) {
@@ -168,12 +152,10 @@ export default class Sokoban {
                     this.playerY = j;
                 }
                 if (ch === '$' || ch === '*') {
-                    this.boxXs.push(i);
-                    this.boxYs.push(j);
+                    bv.set(this.boxBV, idx);
                 }
                 if (ch === '+' || ch === '*' || ch === '.') {
-                    this.goalXs.push(i);
-                    this.goalYs.push(j);
+                    bv.set(this.goalBV, idx);
                 }
                 let code = C2MAP[ch];
                 this.map[idx] = code ? code : 0;
@@ -181,12 +163,8 @@ export default class Sokoban {
                 ++idx;
             }
         }
-        this.boxXs = new Uint16Array(this.boxXs);
-        this.boxYs = new Uint16Array(this.boxYs);
-        this.goalXs = new Uint16Array(this.goalXs);
-        this.goalYs = new Uint16Array(this.goalYs);
         // Hide unreachable squares
-        let reachable = new Uint8Array(this.map.length);
+        const reachable = new Uint8Array(totalSquares);
         let xs = [this.playerX];
         let ys = [this.playerY];
         while (xs.length) {
@@ -196,26 +174,26 @@ export default class Sokoban {
                 let i = xs[k];
                 let j = ys[k];
                 let idx = this.w*j + i;
-                let code = this.map[idx];
-                // Coordinate is obviously unreachable
-                if (!code || code === MWALL) {
-                    continue;
-                }
                 // Coordinate has already been visited
                 if (reachable[idx]) {
                     continue;
                 }
+                // Coordinate is obviously unreachable
+                let code = this.map[idx];
+                if (!code || code === MWALL) {
+                    continue;
+                }
                 // Coordinate is reachable
                 reachable[idx] = 1;
-                nxs.push(i+1); nys.push(j);
-                nxs.push(i-1); nys.push(j);
-                nxs.push(i); nys.push(j+1);
-                nxs.push(i); nys.push(j-1);
+                for (let d = 0; d < 4; ++d) {
+                    nxs.push(i+DXS[d]);
+                    nys.push(j+DYS[d]);
+                }
             }
             xs = nxs;
             ys = nys;
         }
-        for (let i = 0, len = this.map.length; i < len; ++i) {
+        for (let i = 0; i < totalSquares; ++i) {
             if (!reachable[i] && this.map[i] === C2MAP[' ']) {
                 this.map[i] = 0;
             }
@@ -224,7 +202,18 @@ export default class Sokoban {
         this.map = this.map;
 
         // Zobrist hashing
-        this.zobrist = new Zobrist(this.w, this.h);
+        this.ZOBBOXH = new Int32Array(totalSquares);
+        this.ZOBBOXL = new Int32Array(totalSquares);
+        this.ZOBPLAYERH = new Int32Array(totalSquares);
+        this.ZOBPLAYERL = new Int32Array(totalSquares);
+        const SEED = 1575579901796n;
+        const rng = new PCG32(SEED);
+        for (let i = 0; i < totalSquares; ++i) {
+            this.ZOBBOXH[i] = rng.rand();
+            this.ZOBBOXL[i] = rng.rand();
+            this.ZOBPLAYERH[i] = rng.rand();
+            this.ZOBPLAYERL[i] = rng.rand();
+        }
         this.rehash();
 
         this.moves = '';
@@ -234,8 +223,7 @@ export default class Sokoban {
         // Copies width, height, playerX, playerY, hashH, hashL
         let cs = Object.assign(Object.create(Sokoban.prototype), s);
         // Deep copy state
-        cs.boxXs = new Uint16Array(s.boxXs);
-        cs.boxYs = new Uint16Array(s.boxYs);
+        cs.boxBV = bv.copy(s.boxBV);
         // Map should be referenced, since it is immutable
         // Goal list should be referenced, since it is immutable
         // Zobrist object should be referenced
@@ -243,92 +231,217 @@ export default class Sokoban {
         return cs;
     }
 
-    static solve(s, timeout=10000) {
-        let tt = new TranspositionTable();
-        const liveSquares = s._generateLiveSquares();
+    static solve(sok, timeout=10000) {
+        const ENDTIME = new Date().getTime() + timeout;
+        const liveSquares = Sokoban._generateLiveSquares(sok);
+
+        const tt = new TranspositionTable();
         let ps; // array of states being processed
         let nps; // array of states to process next
 
-        let endtime = new Date().getTime() + timeout;
 
-        function split(s) {
-            let visited = new Array(s.map.length).fill(false);
+        //function split(s) {
+        //    const visited = new Uint8Array(s.map.length);
 
-            let xs = [s.playerX];
-            let ys = [s.playerY];
-            let idxs = [s.playerY*s.w + s.playerX];
-            let mls = [''];
-            while (xs.length) { // until we process every reachable space
-                let nxs = [];
-                let nys = [];
-                let nidxs = [];
-                let nmls = [];
-                for (let k = 0, len = xs.length; k < len; ++k) {
-                    if (new Date().getTime() > endtime) { return null; }
+        //    let xs = [s.playerX];
+        //    let ys = [s.playerY];
+        //    let idxs = [s.playerY*s.w + s.playerX];
+        //    while (xs.length) { // until we process every reachable space
+        //        let nxs = [];
+        //        let nys = [];
+        //        let nidxs = [];
+        //        for (let k = 0, len = xs.length; k < len; ++k) {
+        //            let x = xs[k];
+        //            let y = ys[k];
+        //            let idx = idxs[k];
 
-                    let x = xs[k];
-                    let y = ys[k];
-                    let idx = idxs[k];
+        //            if (visited[idx]) { continue; }
+        //            visited[idx] = true;
 
-                    if (visited[idx]) { continue; }
-                    visited[idx] = true;
+        //            for (let i = 0; i < 4; ++i) {
+        //                let dx = DXS[i];
+        //                let dy = DYS[i];
+        //                let nx = x+dx;
+        //                let ny = y+dy;
+        //                let nidx = ny*s.w + nx;
+        //                let ncode = s.map[nidx];
 
-                    for (let i = 0; i < 4; ++i) {
-                        let dx = DXS[i];
-                        let dy = DYS[i];
-                        let nx = x+dx;
-                        let ny = y+dy;
-                        let nidx = ny*s.w + nx;
-                        let ncode = s.map[nidx];
+        //                let b = s._getBox(nx, ny);
+        //                if (b !== null) { // is box
+        //                    let nnx = nx+dx;
+        //                    let nny = ny+dy;
+        //                    let nnidx = nny*s.w + nnx;
+        //                    if (!liveSquares[nnidx]) { continue; } // Box should/can-not be moved here
+        //                    // testing for walls/sides not necessary: happens in liveSquares
+        //                    //let nncode = s.map[nnidx];
+        //                    //if (nncode && nncode !== MWALL && s._getBox(nnx, nny) === null) { // and box able to move
+        //                    if (s._getBox(nnx, nny) === null) { // and box able to move
+        //                        let cs = Sokoban.copy(s);
+        //                        cs.playerX = x;
+        //                        cs.playerY = y;  // move player to this position
+        //                        cs._move(dx, dy); // push box
+        //                        let exists = tt.entry(cs.hashH, cs.hashL);
+        //                        if (exists) { continue; }
+        //                        let push = nidx | PUSH_DIRS[i]; // log the box pushed and direction
+        //                        cs.pushes = [...s.pushes, push];
+        //                        if (cs.completed()) { return cs; } // we're done!
+        //                        nps.push(cs);
+        //                    }
+        //                }
+        //                else if (ncode && ncode !== MWALL) { // player can move here
+        //                    nxs.push(nx);
+        //                    nys.push(ny);
+        //                    nidxs.push(nidx);
+        //                }
+        //            }
+        //        }
+        //        xs = nxs;
+        //        ys = nys;
+        //        idxs = nidxs;
+        //    }
+        //    return null;
+        //}
+       
+        // setup
 
-                        let b = s._getBox(nx, ny);
-                        if (b !== null) { // is box
-                            let nnx = nx+dx;
-                            let nny = ny+dy;
-                            let nnidx = nny*s.w + nnx;
-                            if (!liveSquares[nnidx]) { continue; } // Game over when a box is pushed here
-                            let nncode = s.map[nnidx];
-                            if (nncode && nncode !== MWALL && s._getBox(nnx, nny) === null) { // and box able to move
-                                let cs = Sokoban.copy(s);
-                                cs.playerX = x;
-                                cs.playerY = y;
-                                cs.moves += mls[k]; // move player to this position
-                                cs.move(dx, dy); // push box
-                                let exists = tt.entry(cs.hashH, cs.hashL);
-                                if (exists) { continue; }
-                                if (cs.completed()) { return cs; } // we're done!
-                                nps.push(cs);
-                            }
-                        }
-                        else if (ncode && ncode !== MWALL) { // player can move here
-                            nxs.push(nx);
-                            nys.push(ny);
-                            nidxs.push(nidx);
-                            nmls.push(mls[k] + DMS[i]);
-                        }
-                    }
-                }
-                xs = nxs;
-                ys = nys;
-                idxs = nidxs;
-                mls = nmls;
-            }
-            return null;
-        }
+        // Determine what pushes we need to make
+        let solved = null;
+        sok.pushes = [];
 
-        ps = [s];
-        while (ps.length) {
+        ps = [sok];
+        graphLoop: while (ps.length) {
             nps = [];
             for (let i = 0, len = ps.length; i < len; ++i) {
-                let finished = split(ps[i]);
-                if (finished) {
-                    return finished.moves;
+                //solved = split(ps[i]);
+                //if (solved) { break graphLoop; }
+                let s = ps[i];
+// Function split(s) BEGIN
+                const visited = new Uint8Array(s.map.length);
+
+                let xs = [s.playerX];
+                let ys = [s.playerY];
+                let idxs = [s.playerY*s.w + s.playerX];
+                while (xs.length) { // until we process every reachable space
+                    let nxs = [];
+                    let nys = [];
+                    let nidxs = [];
+                    for (let k = 0, len = xs.length; k < len; ++k) {
+                        let x = xs[k];
+                        let y = ys[k];
+                        let idx = idxs[k];
+
+                        if (visited[idx]) { continue; }
+                        visited[idx] = true;
+
+                        for (let i = 0; i < 4; ++i) {
+                            let dx = DXS[i];
+                            let dy = DYS[i];
+                            let nx = x+dx;
+                            let ny = y+dy;
+                            let nidx = ny*s.w + nx;
+                            let ncode = s.map[nidx];
+
+                            if (bv.test(s.boxBV, nidx)) { // is box
+                                let nnx = nx+dx;
+                                let nny = ny+dy;
+                                let nnidx = nny*s.w + nnx;
+                                if (!liveSquares[nnidx]) { continue; } // Box should/can-not be moved here
+                                // testing for walls/sides not necessary: happens in liveSquares
+                                //let nncode = s.map[nnidx];
+                                //if (nncode && nncode !== MWALL && s._getBox(nnx, nny) === null) { // and box able to move
+                                if (!bv.test(s.boxBV, nnidx)) { // and box able to move
+                                    let cs = Sokoban.copy(s);
+                                    cs.playerX = x;
+                                    cs.playerY = y;  // move player to this position
+                                    cs._move(dx, dy); // push box
+                                    let exists = tt.entry(cs.hashH, cs.hashL);
+                                    if (exists) { continue; }
+                                    let push = nidx | PUSH_DIRS[i]; // log the box pushed and direction
+                                    cs.pushes = [...s.pushes, push];
+                                    if (cs.completed()) { // we're done!
+                                        solved = cs;
+                                        break graphLoop;
+                                    }
+                                    nps.push(cs);
+                                }
+                            }
+                            else if (ncode && ncode !== MWALL) { // player can move here
+                                nxs.push(nx);
+                                nys.push(ny);
+                                nidxs.push(nidx);
+                            }
+                        }
+                    }
+                    xs = nxs;
+                    ys = nys;
+                    idxs = nidxs;
                 }
-                if (new Date().getTime() > endtime) { return null; }
+// Function split(s) END
+                if (new Date().getTime() > ENDTIME) { return null; } // timeout
             }
             ps = nps;
         }
-        return null; // could not find a solution
+        if (!solved) { return null; } // no solution
+
+        // Now that we know what pushes we need to make, figure out the moves
+        // as well.
+        let pushes = solved.pushes;
+
+        let cs = Sokoban.copy(sok);
+        for (let i = 0, len = pushes.length; i < len; ++i) {
+            let push = pushes[i];
+            let bidx = push & PUSH_IDX_MASK;
+            let bx = bidx % cs.w;
+            let by = ~~(bidx / cs.w);
+            let px = bx;
+            let py = by;
+            let dir_idx = push >>> PUSH_SHIFT;
+            let push_dir = DMS[dir_idx];
+            py -= DYS[dir_idx];
+            px -= DXS[dir_idx];
+            let mvs = cs.movesTo(px, py);
+            for (let j = 0, mlen = mvs.length; j < mlen; ++j) {
+                cs.move(mvs[j]);
+            }
+            cs.move(push_dir);
+        }
+        return cs.moves;
+    }
+
+    movesTo(x, y) {
+        const visited = new Uint8Array(this.map.length);
+        let xs = [this.playerX];
+        let ys = [this.playerY];
+        let mvs = [''];
+        while (xs.length) {
+            let nxs = [];
+            let nys = [];
+            let nmvs = [];
+            for (let k = 0, len = xs.length; k < len; ++k) {
+                let i = xs[k];
+                let j = ys[k];
+                if (i === x && j === y) { return mvs[k]; } // Done!
+                let idx = j*this.w + i;
+                // Already checked this point
+                if (visited[idx]) { continue; }
+                visited[idx] = 1;
+                // Coordinate is unreachable
+                let code = this.map[idx];
+                if (!code || code === MWALL || bv.test(this.boxBV, idx)) {
+                    continue;
+                }
+                // Test surrounding points
+                for (let d = 0; d < 4; ++d) {
+                    nxs.push(i+DXS[d]);
+                    nys.push(j+DYS[d]);
+                    nmvs.push(mvs[k]+DMS[d]);
+                }
+            }
+            xs = nxs;
+            ys = nys;
+            mvs = nmvs;
+        }
+        return null;
     }
 
     rehash() {
@@ -336,82 +449,82 @@ export default class Sokoban {
         this.hashL = 0;
         // player hash
         this._updateNormalization();
-        let h = this.zobrist.player(this.normX, this.normY);
-        this.hashH ^= h[1];
-        this.hashL ^= h[0];
-        for (let i = 0, len = this.boxXs.length; i < len; ++i) {
-            let h = this.zobrist.box(this.boxXs[i], this.boxYs[i]);
-            this.hashH ^= h[1];
-            this.hashL ^= h[0];
+        this.hashH ^= this.ZOBPLAYERH[this.normIdx];
+        this.hashL ^= this.ZOBPLAYERL[this.normIdx];
+        for (let i = 0, len = this.map.length; i < len; ++i) {
+            if (bv.test(this.boxBV, i)) {
+                this.hashH ^= this.ZOBBOXH[i];
+                this.hashL ^= this.ZOBBOXL[i];
+            }
         }
     }
 
     completed() {
-        for (let j = 0, len = this.goalXs.length; j < len; ++j) {
-            let i = 0, len = this.boxXs.length;
-            for (; i < len; ++i) {
-                if (this.goalXs[j] === this.boxXs[i] 
-                        && this.goalYs[j] === this.boxYs[i]) {
-                    break; // a box is on goal j
-                }
-            }
-            if (i >= len) {
-                return false; // a box was not found on a goal
+        for (let i = 0, len = this.goalBV.length; i < len; ++i) {
+            if (this.goalBV[i] !== this.boxBV[i]) {
+                return false;
             }
         }
         return true;
     }
 
-    move(dx, dy) {
+    move(dir) {
+        let dirIdx = DMS.indexOf(dir);
+        let dx = DXS[dirIdx];
+        let dy = DYS[dirIdx];
+
+        let mv = this._move(dx, dy);
+        if (mv) {
+            this.moves += mv;
+            return true;
+        }
+        return false;
+    }
+
+    _move(dx, dy) {
         let nx = this.playerX+dx;
         let ny = this.playerY+dy;
-        let ncode = this._map(nx, ny);
+        let nidx = ny*this.w + nx;
+        let ncode = this.map[nidx];
         if (!ncode || ncode === MWALL) {
-            return false; // cannot walk into a wall
+            return null; // cannot walk into a wall
         }
-        let b = this._getBox(nx, ny);
-        if (b === null) { // empty space
+        if (!bv.test(this.boxBV, nidx)) { // empty space
             this.playerX = nx;
             this.playerY = ny;
-            this.moves += _dir(dx, dy);
-            return true;
+            return _DIR(dx, dy);
         }
         else { // has a box
             let nnx = nx+dx;
             let nny = ny+dy;
-            let nncode = this._map(nnx, nny);
-            if (!nncode || nncode === MWALL || this._getBox(nnx, nny) !== null) {
+            let nnidx = nny*this.w + nnx;
+            let nncode = this.map[nnidx];
+            if (!nncode || nncode === MWALL || bv.test(this.boxBV, nnidx)) {
                 return false; // Cannot push into a wall or another box
             }
             // Pushable box
-            let h;
             // Clear current box's hash
-            h = this.zobrist.box(nx, ny);
-            this.hashH ^= h[1];
-            this.hashL ^= h[0];
+            this.hashH ^= this.ZOBBOXH[nidx];
+            this.hashL ^= this.ZOBBOXL[nidx];
             // Update box's position
-            this.boxXs[b] = nnx;
-            this.boxYs[b] = nny;
+            bv.clear(this.boxBV, nidx);
+            bv.set(this.boxBV, nnidx);
             // Set box's hash
-            h = this.zobrist.box(nnx, nny);
-            this.hashH ^= h[1];
-            this.hashL ^= h[0];
+            this.hashH ^= this.ZOBBOXH[nnidx];
+            this.hashL ^= this.ZOBBOXL[nnidx];
 
             // clear current player hash
-            h = this.zobrist.player(this.normX, this.normY);
-            this.hashH ^= h[1];
-            this.hashL ^= h[0];
+            this.hashH ^= this.ZOBPLAYERH[this.normIdx];
+            this.hashL ^= this.ZOBPLAYERL[this.normIdx];
             // set new player position
             this.playerX = nx;
             this.playerY = ny;
             // set the new player hash
             this._updateNormalization();
-            h = this.zobrist.player(this.normX, this.normY);
-            this.hashH ^= h[1];
-            this.hashL ^= h[0];
+            this.hashH ^= this.ZOBPLAYERH[this.normIdx];
+            this.hashL ^= this.ZOBPLAYERL[this.normIdx];
 
-            this.moves += _dir(dx, dy).toUpperCase();
-            return true;
+            return _DIR(dx, dy).toUpperCase();
         }
         return false;
     }
@@ -433,40 +546,36 @@ export default class Sokoban {
             this.playerY = ly;
         }
         else { // undo push
+            let pIdx = this.playerY*this.w + this.playerX;
+
             let bx = (m === 'L') ? this.playerX - 1
                    : (m === 'R') ? this.playerX + 1
                    : this.playerX;
             let by = (m === 'U') ? this.playerY - 1
                    : (m === 'D') ? this.playerY + 1
                    : this.playerY;
+            let bidx = by*this.w + bx;
 
-            let b = this._getBox(bx, by);
-
-            let h;
             // clear current box's hash
-            h = this.zobrist.box(bx, by);
-            this.hashH ^= h[1];
-            this.hashL ^= h[0];
+            this.hashH ^= this.ZOBBOXH[bidx];
+            this.hashL ^= this.ZOBBOXL[bidx];
             // set box position
-            this.boxXs[b] = this.playerX;
-            this.boxYs[b] = this.playerY;
+            bv.clear(this.boxBV, bidx);
+            bv.set(this.boxBV, pIdx);
             // set box's hash
-            h = this.zobrist.box(this.playerX, this.playerY);
-            this.hashH ^= h[1];
-            this.hashL ^= h[0];
+            this.hashH ^= this.ZOBBOXH[pIdx];
+            this.hashL ^= this.ZOBBOXL[pIdx];
 
             // clear current player hash
-            h = this.zobrist.player(this.normX, this.normY);
-            this.hashH ^= h[1];
-            this.hashL ^= h[0];
+            this.hashH ^= this.ZOBPLAYERH[this.normIdx];
+            this.hashL ^= this.ZOBPLAYERL[this.normIdx];
             // set new player position
             this.playerX = lx;
             this.playerY = ly;
             // set the new player hash
             this._updateNormalization();
-            h = this.zobrist.player(this.normX, this.normY);
-            this.hashH ^= h[1];
-            this.hashL ^= h[0];
+            this.hashH ^= this.ZOBPLAYERH[this.normIdx];
+            this.hashL ^= this.ZOBPLAYERL[this.normIdx];
         }
         this.moves = this.moves.slice(0, -1);
     }
@@ -489,7 +598,7 @@ export default class Sokoban {
                         str += '?';
                     }
                 }
-                else if (this._getBox(i, j) !== null) {
+                else if (bv.test(this.boxBV, idx)) {
                     if (code === MFLOOR) {
                         str += '$';
                     }
@@ -524,7 +633,7 @@ export default class Sokoban {
     }
 }
 
-export function test() {
+export function runTests() {
     let s = new Sokoban(
 `#######
 #   .+#
@@ -533,8 +642,7 @@ export function test() {
 #     #
 #######`
     );
-    console.assert(s.normX === 1);
-    console.assert(s.normY === 1);
+    console.assert(s.normIdx === (1*s.w + 1));
 
     s = new Sokoban(
 `######
@@ -544,29 +652,29 @@ export function test() {
     );
     let hH = s.hashH;
     let hL = s.hashL;
-    s.move(0, -1);
-    s.move(-1, 0);
-    s.move(-1, 0);
-    s.move(-1, 0);
-    s.move(-1, 0);
-    s.move(-1, 0);
-    s.move(-1, 0);
-    s.move(-1, 0);
-    s.move(-1, 0);
-    s.move(0, 1);
-    s.move(1, 0);
+    s.move('u');
+    s.move('l');
+    s.move('l');
+    s.move('l');
+    s.move('l');
+    s.move('l');
+    s.move('l');
+    s.move('l');
+    s.move('l');
+    s.move('d');
+    s.move('r');
     console.assert(hH !== s.hashH);
     console.assert(hL !== s.hashL);
-    s.move(0, -1);
-    s.move(1, 0);
-    s.move(1, 0);
-    s.move(1, 0);
-    s.move(1, 0);
-    s.move(1, 0);
-    s.move(1, 0);
-    s.move(1, 0);
-    s.move(0, 1);
-    s.move(-1, 0);
+    s.move('u');
+    s.move('r');
+    s.move('r');
+    s.move('r');
+    s.move('r');
+    s.move('r');
+    s.move('r');
+    s.move('r');
+    s.move('d');
+    s.move('l');
     console.assert(hH === s.hashH);
     console.assert(hL === s.hashL);
     while(s.moves.length) {
@@ -581,7 +689,7 @@ export function test() {
 #####`
     );
     console.assert(!s.completed());
-    s.move(-1, 0);
+    s.move('l');
     console.assert(s.completed());
 
     s = new Sokoban(
@@ -590,7 +698,7 @@ export function test() {
 #####`
     );
     let cs = Sokoban.copy(s);
-    cs.move(-1, 0);
+    cs.move('l');
     console.assert(s.playerX === 3);
     console.assert(cs.playerX === 2);
     
@@ -603,8 +711,11 @@ export function test() {
 #  ###
 ####  `
     );
+    console.assert(s.movesTo(1, 2) === 'ul');
+
     let sol = Sokoban.solve(s, 10000);
     console.assert(sol === 'dlUrrrdLullddrUluRuulDrddrruLdlUU');
+
 
     s = new Sokoban(
 `####
@@ -637,11 +748,11 @@ export function test() {
 #    #
 ######`
     );
-    let livesquares = s._generateLiveSquares();
+    let liveSquares = Sokoban._generateLiveSquares(s);
     for (let j = 0; j < s.h; ++j) {
         for (let i = 0; i < s.w; ++i) {
             let idx = j*s.w + i;
-            let val = livesquares[j*s.w+i];
+            let val = liveSquares[j*s.w+i];
             if (j === 2 && (i >= 2 && i <= 4)) {
                 console.assert(val === 1);
             }
@@ -658,11 +769,11 @@ export function test() {
 #     #
 #######`
     );
-    livesquares = s._generateLiveSquares();
+    liveSquares = Sokoban._generateLiveSquares(s);
     for (let j = 0; j < s.h; ++j) {
         for (let i = 0; i < s.w; ++i) {
             let idx = j*s.w + i;
-            let val = livesquares[j*s.w+i];
+            let val = liveSquares[j*s.w+i];
             if ((j === 1 || j === 2) && (i >= 2 && i <= 5)) {
                 console.assert(val === 1);
             }

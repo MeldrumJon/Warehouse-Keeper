@@ -97,7 +97,7 @@ export class TypedTranspositionTable {
     }
 }
 
-export function test() {
+export function runTests() {
     let tt = new TranspositionTable();
 
     console.assert(!tt.entry(2, 2)); // first entry

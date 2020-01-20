@@ -15,19 +15,20 @@ function main() {
 #####`
     );
     let view = new SokobanView(elPuzzle, puzzle);
+    console.log(Sokoban.solve(puzzle));
 
     window.addEventListener('keydown', function (evt) {
         if (evt.keyCode === 37) { // left
-            puzzle.move(-1, 0);
+            puzzle.move('l');
         }
         else if (evt.keyCode === 38) { // up
-            puzzle.move(0, -1);
+            puzzle.move('u');
         }
         else if (evt.keyCode === 39) { // right
-            puzzle.move(1, 0);
+            puzzle.move('r');
         }
         else if (evt.keyCode === 40) { // down
-            puzzle.move(0, 1);
+            puzzle.move('d');
         }
         else if (evt.keyCode === 85) {
             puzzle.undo();
