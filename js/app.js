@@ -1,20 +1,21 @@
 import Sokoban from './Sokoban.js';
+import SokobanView from './SokobanView.js';
 
 function main() {
-    let puzzle = new Sokoban(
-`####
-# .#
-#  ###
-#*@  #
-#  $ #
-#  ###
-####  `
-    );
-    let sol = Sokoban.solve(puzzle, 1000);
-    console.log(sol);
+    const elPuzzle = document.getElementById('puzzle');
 
-    const elGame = document.getElementById('game');
-    elGame.innerText = puzzle.toString();
+    let puzzle = new Sokoban(
+`   ####
+####  #
+#  #  #
+# . . #
+# @$$ #
+# # ###
+#   #
+#####`
+    );
+    let view = new SokobanView(elPuzzle, puzzle);
+
     window.addEventListener('keydown', function (evt) {
         if (evt.keyCode === 37) { // left
             puzzle.move(-1, 0);
@@ -31,7 +32,7 @@ function main() {
         else if (evt.keyCode === 85) {
             puzzle.undo();
         }
-        elGame.innerText = puzzle.toString();
+        view.update();
     });
 }
 

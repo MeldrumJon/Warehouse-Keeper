@@ -2,64 +2,143 @@ import Zobrist from './Zobrist.js';
 import {TypedTranspositionTable as TranspositionTable} from './TranspositionTable.js';
 import Flags from './Flags.js';
 
-const PLAYER_SET = {};
-PLAYER_SET[' '.charCodeAt(0)] = '@'.charCodeAt(0),
-PLAYER_SET['.'.charCodeAt(0)] = '+'.charCodeAt(0)
-Object.freeze(PLAYER_SET);
-
-const PLAYER_CLEAR = {};
-PLAYER_CLEAR['@'.charCodeAt(0)] = ' '.charCodeAt(0);
-PLAYER_CLEAR['+'.charCodeAt(0)] = '.'.charCodeAt(0);
-Object.freeze(PLAYER_CLEAR);
-
-const PLAYER_PUSH = {};
-PLAYER_PUSH['$'.charCodeAt(0)] = '@'.charCodeAt(0),
-PLAYER_PUSH['*'.charCodeAt(0)] = '+'.charCodeAt(0)
-Object.freeze(PLAYER_PUSH);
-
-const BOX_PULL = {};
-BOX_PULL['@'.charCodeAt(0)] = '$'.charCodeAt(0),
-BOX_PULL['+'.charCodeAt(0)] = '*'.charCodeAt(0)
-Object.freeze(BOX_PULL);
-
-const BOX_SET = {};
-BOX_SET[' '.charCodeAt(0)] = '$'.charCodeAt(0),
-BOX_SET['.'.charCodeAt(0)] = '*'.charCodeAt(0)
-Object.freeze(BOX_SET);
-
-const BOX_CLEAR = {};
-BOX_CLEAR['$'.charCodeAt(0)] = ' '.charCodeAt(0),
-BOX_CLEAR['*'.charCodeAt(0)] = '.'.charCodeAt(0)
-Object.freeze(BOX_CLEAR);
-
-const CODE = Object.freeze({
-    '#': '#'.charCodeAt(0),
-    '@': '@'.charCodeAt(0),
-    '+': '+'.charCodeAt(0),
-    '$': '$'.charCodeAt(0),
-    '*': '*'.charCodeAt(0),
-    '.': '.'.charCodeAt(0),
-    ' ': ' '.charCodeAt(0),
-    '\\': '\\'.charCodeAt(0),
+const MEMPTY = 0;
+const MWALL = 1;
+const MGOAL = 2;
+const MFLOOR = 3;
+const C2MAP = Object.freeze({
+    '\\': 0, // Empty Space
+    '#': 1, // Wall
+    '@': 3, // Floor
+    '+': 2, // Goal square
+    '$': 3, // Floor
+    '*': 2, // Goal square
+    '.': 2, // Goal square
+    ' ': 3, // Floor
 });
-const NULL_SPACE = '\\'.charCodeAt(0);
 
 const DXS = Object.freeze([-1, 1, 0, 0]);
 const DYS = Object.freeze([0, 0, -1, 1]);
 const DMS = Object.freeze(['l', 'r', 'u', 'd']);
 
+function _dir(dx, dy) {
+    return (dx < 0) ? 'l'
+            : (dx > 0) ? 'r'
+            : (dy < 0) ? 'u'
+            : (dy > 0) ? 'd'
+            : '';
+}
+
 export default class Sokoban {
-    _get(x, y) {
+    _map(x, y) {
         let idx = y*this.w + x;
-        let code = this.puzzle[idx];
-        return (code) ? code : 0;
+        return this.map[idx];
     }
 
-    _set(x, y, value) {
-        let idx = y*this.w + x;
-        this.puzzle[idx] = value;
+    _getBox(x, y) {
+        for (let i = 0, len = this.boxXs.length; i < len; ++i) {
+            if (this.boxXs[i] === x && this.boxYs[i] === y) {
+                return i;
+            }
+        }
+        return null;
     }
 
+    _hasGoal(x, y) {
+        for (let i = 0, len = this.boxXs.length; i < len; ++i) {
+            if (this.goalXs[i] === x && this.goalYs[i] === y) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    _hasPlayer(x, y) {
+        return (this.playerX === x && this.playerY === y);
+    }
+
+    _updateNormalization() {
+        let normX = this.playerX;
+        let normY = this.playerY;
+
+        let visited = new Uint8Array(this.map.length);
+        let xs = [normX];
+        let ys = [normY];
+        while (xs.length) {
+            let nxs = [];
+            let nys = [];
+            for (let k = 0, len = xs.length; k < len; ++k) {
+                let i = xs[k]
+                let j = ys[k];
+                let idx = j*this.w + i;
+                let code = this.map[idx];
+                // Coordinate is unreachable
+                if (!code || code === MWALL || this._getBox(i, j) !== null) {
+                    continue;
+                }
+                // Already checked this point
+                if (visited[idx]) { continue; }
+                visited[idx] = 1;
+                // Update normalized position
+                if (i < normX) {
+                    normX = i;
+                }
+                if (j < normY) {
+                    normY = j;
+                }
+                // Test surrounding points
+                nxs.push(i+1); nys.push(j);
+                nxs.push(i-1); nys.push(j);
+                nxs.push(i); nys.push(j+1);
+                nxs.push(i); nys.push(j-1);
+            }
+            xs = nxs;
+            ys = nys;
+        }
+        this.normX = normX;
+        this.normY = normY;
+    }
+
+    _generateLiveSquares() {
+        let lsquares = new Uint8Array(this.w*this.h);
+        for (let g = 0, len = this.goalXs.length; g < len; ++g) {
+            let xs = [this.goalXs[g]];
+            let ys = [this.goalYs[g]];
+            while (xs.length) {
+                let nxs = [];
+                let nys = [];
+                for (let k = 0, len = xs.length; k < len; ++k) {
+                    let x = xs[k];
+                    let y = ys[k];
+                    let idx = y*this.w + x;
+
+                    if (lsquares[idx]) { continue; }
+                    lsquares[idx] = 1;
+
+                    for (let d = 0; d < 4; ++d) {
+                        let dx = DXS[d];
+                        let dy = DYS[d];
+                        let nx = x+dx;
+                        let ny = y+dy;
+                        let ncode = this._map(nx, ny);
+                        let nnx = nx+dx;
+                        let nny = ny+dy;
+                        let nncode = this._map(nnx, nny);
+                        // is pullable onto nx, ny
+                        if (ncode && (ncode === MFLOOR || ncode === MGOAL)
+                                && nncode && (nncode === MFLOOR || nncode === MGOAL)) {
+                            nxs.push(nx);
+                            nys.push(ny);
+                        }
+                    }
+                }
+                xs = nxs;
+                ys = nys;
+            }
+        }
+        return lsquares;
+    }
+    
     constructor(str) {
         str = str.split(/\r?\n/);
         // Dimensions of puzzle
@@ -71,85 +150,79 @@ export default class Sokoban {
                 this.w = len;
             }
         }
-        // Convert puzzle to numeric
-        this.puzzle = new Uint8Array(this.w*this.h);
-        for (let j = 0; j < this.h; ++j) {
-            let row = j*this.w;
-            for (let i = 0; i < this.w; ++i) {
-                let idx = row + i;
-                let code = str[j].charCodeAt(i);
-                this.puzzle[idx] = code ? code : NULL_SPACE;
-            }
-        }
-        // Hide unreachable squares
-        const FLAG_VISITED = 0x1;
-        const FLAG_REACHABLE = 0x2;
-        const FLAG_UNREACHABLE = 0x4;
-        let reachable = function(x, y, flags) {
-            let cur = this._get(x, y);
-            if (!cur || cur === CODE['#'] || cur === CODE['\\']) {
-                return false;
-            }
-            if (flags.get(x, y) & FLAG_REACHABLE) { return true; }
-            if (flags.get(x, y) & FLAG_UNREACHABLE) { return false; }
+        // Convert puzzle to state representation
+        this.playerX = -1;
+        this.playerY = -1;
+        this.boxXs = [];
+        this.boxYs = [];
+        this.goalXs = [];
+        this.goalYs = [];
 
-            let allxs = [];
-            let allys = [];
-
-            let reachable = false;
-            let xs = [x];
-            let ys = [y];
-            while (xs.length) { // until every space is processed
-                let nxs = [];
-                let nys = [];
-                for (let k = 0, len = xs.length; k < len; ++k) {
-                    let i = xs[k]
-                    let j = ys[k];
-                    let ch = this._get(i, j);
-                    if (!ch || ch === CODE['#'] || ch === CODE['\\']) {
-                        continue;
-                    }
-                    if (flags.get(i, j) & FLAG_VISITED) { continue; }
-                    flags.set(i, j, FLAG_VISITED);
-                    if (ch !== CODE[' ']) { // reachable
-                        reachable = true;
-                    }
-                    allxs.push(i);
-                    allys.push(j);
-                    nxs.push(i+1); nys.push(j);
-                    nxs.push(i-1); nys.push(j);
-                    nxs.push(i); nys.push(j+1);
-                    nxs.push(i); nys.push(j-1);
-                }
-                xs = nxs;
-                ys = nys;
-            }
-            for (let k = 0, len = allxs.length; k < len; ++k) {
-                let i = allxs[k]
-                let j = allys[k];
-                if (reachable) { flags.set(i, j, FLAG_REACHABLE); }
-                else { flags.set(i, j, FLAG_UNREACHABLE); }
-            }
-            return reachable;
-        }.bind(this);
-        let flags = new Flags(this.w, this.h);
-        for (let j = 0; j < this.h; ++j) {
-            for (let i = 0; i < this.w; ++i) {
-                if (this._get(i, j) === CODE[' '] && !reachable(i, j, flags)) {
-                    this._set(i, j, CODE['\\']);
-                }
-            }
-        }
-        // Position of player
+        this.map = new Uint8Array(this.w*this.h);
         let idx = 0;
-        for (let len = this.puzzle.length; idx < len; ++idx) {
-            let val = this.puzzle[idx];
-            if (val === CODE['@'] || val === CODE['+']) {
-                break;
+        for (let j = 0; j < this.h; ++j) {
+            for (let i = 0; i < this.w; ++i) {
+                let ch = str[j].charAt(i);
+                if (ch === '@' || ch === '+') {
+                    this.playerX = i;
+                    this.playerY = j;
+                }
+                if (ch === '$' || ch === '*') {
+                    this.boxXs.push(i);
+                    this.boxYs.push(j);
+                }
+                if (ch === '+' || ch === '*' || ch === '.') {
+                    this.goalXs.push(i);
+                    this.goalYs.push(j);
+                }
+                let code = C2MAP[ch];
+                this.map[idx] = code ? code : 0;
+
+                ++idx;
             }
         }
-        this.x = idx % this.w;
-        this.y = ~~(idx / this.w);
+        this.boxXs = new Uint16Array(this.boxXs);
+        this.boxYs = new Uint16Array(this.boxYs);
+        this.goalXs = new Uint16Array(this.goalXs);
+        this.goalYs = new Uint16Array(this.goalYs);
+        // Hide unreachable squares
+        let reachable = new Uint8Array(this.map.length);
+        let xs = [this.playerX];
+        let ys = [this.playerY];
+        while (xs.length) {
+            let nxs = [];
+            let nys = [];
+            for (let k = 0, len = xs.length; k < len; ++k) {
+                let i = xs[k];
+                let j = ys[k];
+                let idx = this.w*j + i;
+                let code = this.map[idx];
+                // Coordinate is obviously unreachable
+                if (!code || code === MWALL) {
+                    continue;
+                }
+                // Coordinate has already been visited
+                if (reachable[idx]) {
+                    continue;
+                }
+                // Coordinate is reachable
+                reachable[idx] = 1;
+                nxs.push(i+1); nys.push(j);
+                nxs.push(i-1); nys.push(j);
+                nxs.push(i); nys.push(j+1);
+                nxs.push(i); nys.push(j-1);
+            }
+            xs = nxs;
+            ys = nys;
+        }
+        for (let i = 0, len = this.map.length; i < len; ++i) {
+            if (!reachable[i] && this.map[i] === C2MAP[' ']) {
+                this.map[i] = 0;
+            }
+        }
+        // Map should not change
+        this.map = this.map;
+
         // Zobrist hashing
         this.zobrist = new Zobrist(this.w, this.h);
         this.rehash();
@@ -158,76 +231,86 @@ export default class Sokoban {
     }
 
     static copy(s) {
-        // Copies width, height, x, y, hash 
-        let ns = Object.assign(Object.create(Sokoban.prototype), s);
-        // Copy array
-        ns.puzzle = new Uint8Array(s.puzzle);
+        // Copies width, height, playerX, playerY, hashH, hashL
+        let cs = Object.assign(Object.create(Sokoban.prototype), s);
+        // Deep copy state
+        cs.boxXs = new Uint16Array(s.boxXs);
+        cs.boxYs = new Uint16Array(s.boxYs);
+        // Map should be referenced, since it is immutable
+        // Goal list should be referenced, since it is immutable
         // Zobrist object should be referenced
-        // Normalized object can be referenced, since it is immutable
         // moves string can be referenced, since String type is immutable
-        return ns;
+        return cs;
     }
 
     static solve(s, timeout=10000) {
         let tt = new TranspositionTable();
+        const liveSquares = s._generateLiveSquares();
         let ps; // array of states being processed
         let nps; // array of states to process next
 
         let endtime = new Date().getTime() + timeout;
 
         function split(s) {
-            let flags = new Flags(s.w, s.h);
+            let visited = new Array(s.map.length).fill(false);
 
-            let xs = [s.x];
-            let ys = [s.y];
+            let xs = [s.playerX];
+            let ys = [s.playerY];
+            let idxs = [s.playerY*s.w + s.playerX];
             let mls = [''];
             while (xs.length) { // until we process every reachable space
                 let nxs = [];
                 let nys = [];
+                let nidxs = [];
                 let nmls = [];
                 for (let k = 0, len = xs.length; k < len; ++k) {
                     if (new Date().getTime() > endtime) { return null; }
 
                     let x = xs[k];
                     let y = ys[k];
+                    let idx = idxs[k];
 
-                    if (flags.get(x, y)) { continue; }
-                    flags.set(x, y, 1);
+                    if (visited[idx]) { continue; }
+                    visited[idx] = true;
 
                     for (let i = 0; i < 4; ++i) {
                         let dx = DXS[i];
                         let dy = DYS[i];
                         let nx = x+dx;
                         let ny = y+dy;
+                        let nidx = ny*s.w + nx;
+                        let ncode = s.map[nidx];
 
-                        let nch = s._get(nx, ny);
-                        if (nch in PLAYER_PUSH) { // is box
+                        let b = s._getBox(nx, ny);
+                        if (b !== null) { // is box
                             let nnx = nx+dx;
                             let nny = ny+dy;
-                            let nnch = s._get(nnx, nny);
-                            if (nnch in BOX_SET) { // and box able to move
+                            let nnidx = nny*s.w + nnx;
+                            if (!liveSquares[nnidx]) { continue; } // Game over when a box is pushed here
+                            let nncode = s.map[nnidx];
+                            if (nncode && nncode !== MWALL && s._getBox(nnx, nny) === null) { // and box able to move
                                 let cs = Sokoban.copy(s);
-                                cs._set(cs.x, cs.y, PLAYER_CLEAR[cs._get(cs.x, cs.y)]);
-                                cs._set(x, y, PLAYER_SET[cs._get(x, y)]);
-                                cs.x = x;
-                                cs.y = y;
+                                cs.playerX = x;
+                                cs.playerY = y;
                                 cs.moves += mls[k]; // move player to this position
                                 cs.move(dx, dy); // push box
-                                if (cs.completed()) { return cs; } // we're done!
                                 let exists = tt.entry(cs.hashH, cs.hashL);
                                 if (exists) { continue; }
+                                if (cs.completed()) { return cs; } // we're done!
                                 nps.push(cs);
                             }
                         }
-                        else if (nch in PLAYER_SET) { // player can move here
+                        else if (ncode && ncode !== MWALL) { // player can move here
                             nxs.push(nx);
                             nys.push(ny);
+                            nidxs.push(nidx);
                             nmls.push(mls[k] + DMS[i]);
                         }
                     }
                 }
                 xs = nxs;
                 ys = nys;
+                idxs = nidxs;
                 mls = nmls;
             }
             return null;
@@ -252,132 +335,83 @@ export default class Sokoban {
         this.hashH = 0;
         this.hashL = 0;
         // player hash
-        this.normalized = this.normalizePosition(this.x, this.y);
-        let h = this.zobrist.player(this.normalized.x, this.normalized.y);
+        this._updateNormalization();
+        let h = this.zobrist.player(this.normX, this.normY);
         this.hashH ^= h[1];
         this.hashL ^= h[0];
-        // Box hash
-        for (let j = 0; j < this.h; ++j) {
-            for (let i = 0; i < this.w; ++i) {
-                let ch = this._get(i, j);
-                if (ch === CODE['$'] || ch === CODE['*']) {
-                    let h = this.zobrist.box(i, j);
-                    this.hashH ^= h[1];
-                    this.hashL ^= h[0];
-                }
-            }
+        for (let i = 0, len = this.boxXs.length; i < len; ++i) {
+            let h = this.zobrist.box(this.boxXs[i], this.boxYs[i]);
+            this.hashH ^= h[1];
+            this.hashL ^= h[0];
         }
     }
 
-    normalizePosition(x, y) {
-        let flags = new Flags(this.w, this.h);
-        let normX = x;
-        let normY = y;
-
-        let xs = [x];
-        let ys = [y];
-        while (xs.length) { // until we reach a reachable space, or every space is processed
-            let nxs = [];
-            let nys = [];
-            for (let k = 0, len = xs.length; k < len; ++k) {
-                let i = xs[k]
-                let j = ys[k];
-                let ch = this._get(i, j);
-                if (!ch || ch === CODE['#'] || ch === CODE['$'] || ch === CODE['*'] || ch === CODE['\\']) {
-                    continue;
-                }
-                if (flags.get(i, j)) { continue; }
-                flags.set(i, j, 1); // visited
-                if (i < normX) {
-                    normX = i;
-                }
-                if (j < normY) {
-                    normY = j;
-                }
-                nxs.push(i+1); nys.push(j);
-                nxs.push(i-1); nys.push(j);
-                nxs.push(i); nys.push(j+1);
-                nxs.push(i); nys.push(j-1);
-            }
-            xs = nxs;
-            ys = nys;
-        }
-        return Object.freeze({ x: normX, y: normY });
-    }
-    
     completed() {
-        for (let i = 0, len = this.puzzle.length; i < len; ++i) {
-            let val = puzzle[i];
-            if (val === CODE['+'] || val === CODE['.']) {
-                return false;
+        for (let j = 0, len = this.goalXs.length; j < len; ++j) {
+            let i = 0, len = this.boxXs.length;
+            for (; i < len; ++i) {
+                if (this.goalXs[j] === this.boxXs[i] 
+                        && this.goalYs[j] === this.boxYs[i]) {
+                    break; // a box is on goal j
+                }
+            }
+            if (i >= len) {
+                return false; // a box was not found on a goal
             }
         }
         return true;
     }
 
     move(dx, dy) {
-        let ch = this._get(this.x, this.y);
-        let nx = this.x+dx;
-        let ny = this.y+dy;
-        let nch = this._get(nx, ny);
-        if (nch in PLAYER_SET) {
-            // clear current player position
-            this._set(this.x, this.y, PLAYER_CLEAR[ch]);
-            // set new player position
-            this._set(nx, ny, PLAYER_SET[nch]);
-            this.x = nx;
-            this.y = ny;
-
-            let dir = (dx < 0) ? 'l'
-                    : (dx > 0) ? 'r'
-                    : (dy < 0) ? 'u'
-                    : (dy > 0) ? 'd'
-                    : '';
-            this.moves += dir;
+        let nx = this.playerX+dx;
+        let ny = this.playerY+dy;
+        let ncode = this._map(nx, ny);
+        if (!ncode || ncode === MWALL) {
+            return false; // cannot walk into a wall
+        }
+        let b = this._getBox(nx, ny);
+        if (b === null) { // empty space
+            this.playerX = nx;
+            this.playerY = ny;
+            this.moves += _dir(dx, dy);
             return true;
         }
-        else if (nch in PLAYER_PUSH) {
+        else { // has a box
             let nnx = nx+dx;
             let nny = ny+dy;
-            let nnch = this._get(nnx, nny);
-            if (nnch in BOX_SET) {
-                let h;
-                // clear current box's hash
-                h = this.zobrist.box(nx, ny);
-                this.hashH ^= h[1];
-                this.hashL ^= h[0];
-                // no need to clear current box position (player overrides)
-                // set box position
-                this._set(nnx, nny, BOX_SET[nnch]);
-                // set box's hash
-                h = this.zobrist.box(nnx, nny);
-                this.hashH ^= h[1];
-                this.hashL ^= h[0];
-
-                // clear current player hash
-                h = this.zobrist.player(this.normalized.x, this.normalized.y);
-                this.hashH ^= h[1];
-                this.hashL ^= h[0];
-                // clear current player position
-                this._set(this.x, this.y, PLAYER_CLEAR[ch]);
-                // set new player position
-                this._set(nx, ny, PLAYER_PUSH[nch]);
-                this.x = nx;
-                this.y = ny;
-                // set the new player hash
-                this.normalized = this.normalizePosition(this.x, this.y);
-                h = this.zobrist.player(this.normalized.x, this.normalized.y);
-                this.hashH ^= h[1];
-                this.hashL ^= h[0];
-
-                let dir = (dx < 0) ? 'L'
-                        : (dx > 0) ? 'R'
-                        : (dy < 0) ? 'U'
-                        : (dy > 0) ? 'D'
-                        : '';
-                this.moves += dir;
-                return true;
+            let nncode = this._map(nnx, nny);
+            if (!nncode || nncode === MWALL || this._getBox(nnx, nny) !== null) {
+                return false; // Cannot push into a wall or another box
             }
+            // Pushable box
+            let h;
+            // Clear current box's hash
+            h = this.zobrist.box(nx, ny);
+            this.hashH ^= h[1];
+            this.hashL ^= h[0];
+            // Update box's position
+            this.boxXs[b] = nnx;
+            this.boxYs[b] = nny;
+            // Set box's hash
+            h = this.zobrist.box(nnx, nny);
+            this.hashH ^= h[1];
+            this.hashL ^= h[0];
+
+            // clear current player hash
+            h = this.zobrist.player(this.normX, this.normY);
+            this.hashH ^= h[1];
+            this.hashL ^= h[0];
+            // set new player position
+            this.playerX = nx;
+            this.playerY = ny;
+            // set the new player hash
+            this._updateNormalization();
+            h = this.zobrist.player(this.normX, this.normY);
+            this.hashH ^= h[1];
+            this.hashL ^= h[0];
+
+            this.moves += _dir(dx, dy).toUpperCase();
+            return true;
         }
         return false;
     }
@@ -387,58 +421,50 @@ export default class Sokoban {
         let m = this.moves.slice(-1);
         let mLower = m.toLowerCase();
 
-        let ch = this._get(this.x, this.y);
-        let lx = (mLower === 'l') ? this.x + 1
-               : (mLower === 'r') ? this.x - 1
-               : this.x;
-        let ly = (mLower === 'u') ? this.y + 1
-               : (mLower === 'd') ? this.y - 1
-               : this.y;
-        let lch = this._get(lx, ly);
+        let lx = (mLower === 'l') ? this.playerX + 1
+               : (mLower === 'r') ? this.playerX - 1
+               : this.playerX;
+        let ly = (mLower === 'u') ? this.playerY + 1
+               : (mLower === 'd') ? this.playerY - 1
+               : this.playerY;
 
         if (m === mLower) { // undo move
-            // clear current player position
-            this._set(this.x, this.y, PLAYER_CLEAR[ch]);
-            // set new player position
-            this._set(lx, ly, PLAYER_SET[lch]);
-            this.x = lx;
-            this.y = ly;
+            this.playerX = lx;
+            this.playerY = ly;
         }
         else { // undo push
-            let bx = (m === 'L') ? this.x - 1
-                   : (m === 'R') ? this.x + 1
-                   : this.x;
-            let by = (m === 'U') ? this.y - 1
-                   : (m === 'D') ? this.y + 1
-                   : this.y;
-            let bch = this._get(bx, by);
+            let bx = (m === 'L') ? this.playerX - 1
+                   : (m === 'R') ? this.playerX + 1
+                   : this.playerX;
+            let by = (m === 'U') ? this.playerY - 1
+                   : (m === 'D') ? this.playerY + 1
+                   : this.playerY;
+
+            let b = this._getBox(bx, by);
 
             let h;
             // clear current box's hash
             h = this.zobrist.box(bx, by);
             this.hashH ^= h[1];
             this.hashL ^= h[0];
-            // clear current box position
-            this._set(bx, by, BOX_CLEAR[bch]);
             // set box position
-            this._set(this.x, this.y, BOX_PULL[ch]);
+            this.boxXs[b] = this.playerX;
+            this.boxYs[b] = this.playerY;
             // set box's hash
-            h = this.zobrist.box(this.x, this.y);
+            h = this.zobrist.box(this.playerX, this.playerY);
             this.hashH ^= h[1];
             this.hashL ^= h[0];
 
             // clear current player hash
-            h = this.zobrist.player(this.normalized.x, this.normalized.y);
+            h = this.zobrist.player(this.normX, this.normY);
             this.hashH ^= h[1];
             this.hashL ^= h[0];
-            // no need to clear current player position (already pulled box)
             // set new player position
-            this._set(lx, ly, PLAYER_SET[lch]);
-            this.x = lx;
-            this.y = ly;
+            this.playerX = lx;
+            this.playerY = ly;
             // set the new player hash
-            this.normalized = this.normalizePosition(this.x, this.y);
-            h = this.zobrist.player(this.normalized.x, this.normalized.y);
+            this._updateNormalization();
+            h = this.zobrist.player(this.normX, this.normY);
             this.hashH ^= h[1];
             this.hashL ^= h[0];
         }
@@ -447,12 +473,52 @@ export default class Sokoban {
 
     toString() {
         let str = '';
+        let idx = 0;
         for (let j = 0; j < this.h; ++j) {
-            let idx = j*this.w;
-            let arr = this.puzzle.slice(idx, idx+this.w);
-
             if (j) { str += '\r\n'; }
-            str += String.fromCharCode(...arr);
+            for (let i = 0; i < this.w; ++i) {
+                let code = this.map[idx];
+                if (i === this.playerX && j === this.playerY) {
+                    if (code === MFLOOR) {
+                        str += '@';
+                    }
+                    else if (code === MGOAL) {
+                        str += '+';
+                    }
+                    else {
+                        str += '?';
+                    }
+                }
+                else if (this._getBox(i, j) !== null) {
+                    if (code === MFLOOR) {
+                        str += '$';
+                    }
+                    else if (code === MGOAL) {
+                        str += '*';
+                    }
+                    else {
+                        str += '?';
+                    }
+                }
+                else {
+                    switch (code) {
+                        case MEMPTY:
+                            str += '\\';
+                            break;
+                        case MFLOOR:
+                            str += ' ';
+                            break;
+                        case MWALL:
+                            str += '#';
+                            break;
+                        case MGOAL:
+                            str += '.';
+                            break;
+                    }
+                }
+
+                ++idx;
+            }
         }
         return str;
     }
@@ -460,14 +526,6 @@ export default class Sokoban {
 
 export function test() {
     let s = new Sokoban(
-`####
-# @#
-####`
-    );
-    s._set(1, 1, CODE['$']);
-    let c = s._get(1, 1);
-    console.assert(c === CODE['$']);
-    s = new Sokoban(
 `#######
 #   .+#
 #####@#
@@ -475,9 +533,8 @@ export function test() {
 #     #
 #######`
     );
-    let norm = s.normalizePosition(2, 3);
-    console.assert(norm.x === 1);
-    console.assert(norm.y === 1);
+    console.assert(s.normX === 1);
+    console.assert(s.normY === 1);
 
     s = new Sokoban(
 `######
@@ -534,8 +591,8 @@ export function test() {
     );
     let cs = Sokoban.copy(s);
     cs.move(-1, 0);
-    console.assert(s._get(3, 1) === CODE['@']);
-    console.assert(cs._get(2, 1) === CODE['@']);
+    console.assert(s.playerX === 3);
+    console.assert(cs.playerX === 2);
     
     s = new Sokoban(
 `####
@@ -546,7 +603,7 @@ export function test() {
 #  ###
 ####  `
     );
-    let sol = Sokoban.solve(s, 1000);
+    let sol = Sokoban.solve(s, 10000);
     console.assert(sol === 'dlUrrrdLullddrUluRuulDrddrruLdlUU');
 
     s = new Sokoban(
@@ -572,4 +629,46 @@ export function test() {
     );
     sol = Sokoban.solve(s, 60000);
     console.assert(sol === null);
+
+    s = new Sokoban(
+`######
+#    #
+#@$ .#
+#    #
+######`
+    );
+    let livesquares = s._generateLiveSquares();
+    for (let j = 0; j < s.h; ++j) {
+        for (let i = 0; i < s.w; ++i) {
+            let idx = j*s.w + i;
+            let val = livesquares[j*s.w+i];
+            if (j === 2 && (i >= 2 && i <= 4)) {
+                console.assert(val === 1);
+            }
+            else {
+                console.assert(val === 0);
+            }
+        }
+    }
+
+    s = new Sokoban(
+`#######
+#   ..#
+#@$$  #
+#     #
+#######`
+    );
+    livesquares = s._generateLiveSquares();
+    for (let j = 0; j < s.h; ++j) {
+        for (let i = 0; i < s.w; ++i) {
+            let idx = j*s.w + i;
+            let val = livesquares[j*s.w+i];
+            if ((j === 1 || j === 2) && (i >= 2 && i <= 5)) {
+                console.assert(val === 1);
+            }
+            else {
+                console.assert(val === 0);
+            }
+        }
+    }
 }
