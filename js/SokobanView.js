@@ -1,9 +1,5 @@
+import * as S from './SokobanConsts.js';
 import * as bv from './bitVector.js';
-
-const MEMPTY = 0;
-const MWALL = 1;
-const MGOAL = 2;
-const MFLOOR = 3;
 
 const MSRC = Object.freeze([
     null,

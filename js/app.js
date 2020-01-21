@@ -1,4 +1,5 @@
 import Sokoban from './Sokoban.js';
+import solve from './SokobanSolver.js';
 import SokobanView from './SokobanView.js';
 
 function main() {
@@ -15,7 +16,7 @@ function main() {
 #####`
     );
     let view = new SokobanView(elPuzzle, puzzle);
-    console.log(Sokoban.solve(puzzle));
+    console.log(solve(puzzle));
 
     window.addEventListener('keydown', function (evt) {
         if (evt.keyCode === 37) { // left
