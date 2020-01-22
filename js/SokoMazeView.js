@@ -5,7 +5,8 @@ const MSRC = Object.freeze({
     0x0: null,
     0x1: 'res/wall.svg',
     0x2: 'res/gs.svg',
-    0x4: 'res/floor.svg'
+    0x4: 'res/floor.svg',
+    0x8: 'res/water.svg'
 });
 
 export default class SokobanView {
@@ -18,11 +19,11 @@ export default class SokobanView {
         this.element.append(this.container);
 
         this.map = document.createElement('div');
-        this.boxes = document.createElement('div');
         this.map.style.position = 'absolute';
+        this.boxes = document.createElement('div');
         let idx = 0;
-        for (let j = 0; j < sokoban.h; ++j) {
-            for (let i = 0; i < sokoban.w; ++i, ++idx) {
+        for (let j = 0; j < this.sokoban.h; ++j) {
+            for (let i = 0; i < this.sokoban.w; ++i, ++idx) {
                 let code = sokoban.map[idx];
                 let src = MSRC[code];
                 if (!src) { continue; }
@@ -121,9 +122,13 @@ export default class SokobanView {
                     sq.style.left = i * this.scale + 'px';
                     this.boxes.append(sq);
                 }
+                if (bv.test(this.sokoban.waterBV, idx)) {
+                    this.map.children[idx].style.background = 'url("res/waterbox.svg")';
+                }
             }
         }
         this.player.style.top = this.sokoban.playerY*this.scale + 'px';
         this.player.style.left = this.sokoban.playerX*this.scale + 'px';
     }
 }
+

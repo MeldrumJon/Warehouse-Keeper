@@ -1,8 +1,9 @@
 // Constants for map
-export const MEMPTY = 0;
-export const MWALL = 1;
-export const MGOAL = 2;
-export const MFLOOR = 3;
+export const MEMPTY = 0x0;
+export const MWALL = 0x1;
+export const MGOAL = 0x2;
+export const MFLOOR = 0x4;
+export const MWATER = 0x8;
 export const C2MAP = Object.freeze({
     '\\': MEMPTY,
     '#': MWALL,
@@ -12,6 +13,7 @@ export const C2MAP = Object.freeze({
     '*': MGOAL,
     '.': MGOAL,
     ' ': MFLOOR,
+    '~': MWATER
 });
 
 export const DMS = Object.freeze(['u', 'd', 'l', 'r']);

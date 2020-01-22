@@ -1,4 +1,4 @@
-import * as S from './SokobanConsts.js';
+import * as S from './consts.js';
 import Sokoban from './Sokoban.js';
 import {TypedTranspositionTable as TranspositionTable} from './TranspositionTable.js';
 import * as bv from './bitVector.js';
@@ -31,8 +31,8 @@ function _generateLiveSquares(sok) {
                     let nny = ny+dy;
                     let nncode = sok._map(nnx, nny);
                     // is pullable onto nx, ny
-                    if (ncode && (ncode === S.MFLOOR || ncode === S.MGOAL)
-                            && nncode && (nncode === S.MFLOOR || nncode === S.MGOAL)) {
+                    if (ncode && (ncode & (S.MFLOOR | S.MGOAL))
+                            && nncode && (nncode & (S.MFLOOR | S.MGOAL))) {
                         nxs.push(nx);
                         nys.push(ny);
                     }
@@ -54,7 +54,6 @@ export default function solve(sok) {
     }
     for (let i = 0, len = sok.map.length; i < len; ++i) {
         if (bv.test(sok.boxBV, i) && !liveSquares[i]) { // Box is on simple deadzone
-            console.log('hi');
             return null;
         }
     }
@@ -66,9 +65,10 @@ export default function solve(sok) {
     sok.pushes = []; // Only keep track of pushes
     let solved = null;
 
+    let nps; // array of states to process next
     let ps = [sok]; // array of states being processed
     graphLoop: while (ps.length) {
-        const nps = [];
+        nps = [];
         for (let i = 0, len = ps.length; i < len; ++i) {
             const s = ps[i];
 // Function split(s) BEGIN
@@ -103,14 +103,14 @@ export default function solve(sok) {
                             const nnidx = nny*s.w + nnx;
                             // liveSquares also ensures we do not push box into wall
                             if (!liveSquares[nnidx]) { continue; } // Box should/can-not be moved here
-                            if (bv.test(s.boxBV, nnidx)) { continue; } // Cannot move 2 boxes
-
+                            if (bv.test(s.boxBV, nnidx)) { continue; } // Box cannot be moved onto box
+                            // Push Box
                             const cs = Sokoban.copy(s);
                             cs.playerX = x;
                             cs.playerY = y;  // move player to this position
                             cs._move(dx, dy); // push box
-                            if (tt.entry(cs.hashH, cs.hashL)) { continue; } // already checked
-                            const push = nidx | S.PUSH_DIRS[i]; // log the box pushed and direction
+                            if (tt.entry(cs.hashH, cs.hashL)) { continue; } // already encountered
+                            const push = nidx | S.PUSH_DIRS[d]; // log the box pushed and direction
                             cs.pushes = [...s.pushes, push];
                             if (cs.completed()) { // we're done!
                                 solved = cs;
@@ -172,7 +172,6 @@ export function runTests() {
 ####  `
     );
     let sol = solve(s, 10000);
-    console.log(sol);
     console.assert(sol === 'dlUrrrdLullddrUluRuulDrddrruLdlUU');
 
 
@@ -182,7 +181,7 @@ export function runTests() {
 ####`
     );
     sol = solve(s, 60000);
-    console.assert(sol === null);
+    console.assert(sol === '');
 
     s = new Sokoban(
 `######

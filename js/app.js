@@ -1,22 +1,24 @@
 import Sokoban from './Sokoban.js';
+import SokoMaze from './SokoMaze.js';
 import solve from './SokobanSolver.js';
 import SokobanView from './SokobanView.js';
+import SokoMazeView from './SokoMazeView.js';
 
 function main() {
     const elPuzzle = document.getElementById('puzzle');
 
-    let puzzle = new Sokoban(
-`   ####
-####  #
-#  #  #
-# . . #
-# @$$ #
-# # ###
-#   #
-#####`
+    let puzzle = new SokoMaze(
+`~~~~~~~~~~~
+~#########~
+~# $      ~
+.$$~~$  @ ~
+~# $~~$   ~
+~#  $$    ~
+~#########~
+~~~~~~~~~~~`
     );
-    let view = new SokobanView(elPuzzle, puzzle);
-    console.log(solve(puzzle));
+    let view = new SokoMazeView(elPuzzle, puzzle);
+    //console.log(solve(puzzle));
 
     window.addEventListener('keydown', function (evt) {
         if (evt.keyCode === 37) { // left
