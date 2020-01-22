@@ -2,23 +2,23 @@ import * as S from './consts.js';
 import * as bv from './bitVector.js';
 
 const MSRC = Object.freeze({
-    0x0: null,
+    0x0: 'res/wall.svg',
     0x1: 'res/wall.svg',
     0x2: 'res/gs.svg',
     0x4: 'res/floor.svg',
-    0x8: 'res/water.svg'
+    0x8: 'res/water.svg',
+    0x14: 'res/finish.svg'
 });
 
-export default class SokobanView {
-    constructor(element, sokoban) {
-        this.element = element;
+export default class SokoMazeView {
+    constructor(container, sokoban) {
+        this.container = container;
         this.sokoban = sokoban;
 
+        this.element = document.createElement('div');
+        this.element.style.position = 'absolute';
         this.element.innerHTML = '';
-
-        this.container = document.createElement('div');
-        this.container.style.position = 'absolute';
-        this.element.append(this.container);
+        container.append(this.element);
 
         this.map = document.createElement('div');
         this.map.style.position = 'absolute';
@@ -26,10 +26,9 @@ export default class SokobanView {
         let idx = 0;
         for (let j = 0; j < this.sokoban.h; ++j) {
             for (let i = 0; i < this.sokoban.w; ++i, ++idx) {
-                let code = sokoban.map[idx];
-                let src = MSRC[code];
-                if (!src) { continue; }
-                let sq = document.createElement('span');
+                const code = sokoban.map[idx];
+                const src = MSRC[code];
+                const sq = document.createElement('span');
                 sq.style.position = 'absolute';
                 sq.SokX = i;
                 sq.SokY = j;
@@ -41,30 +40,29 @@ export default class SokobanView {
                     sq.style.position = 'absolute';
                     sq.SokX = i;
                     sq.SokY = j;
-                    if (bv.test(sokoban.goalBV, i)) {
-                        sq.style.background = 'url("res/boxgs.svg")';
-                    }
-                    else {
-                        sq.style.background = 'url("res/box.svg")';
-                    }
+                    sq.style.background = 'url("res/box.svg")';
                     this.boxes.append(sq);
                 }
             }
         }
-        this.container.append(this.map);
-        this.container.append(this.boxes);
+        this.element.append(this.map);
+        this.element.append(this.boxes);
 
         this.player = document.createElement('span');
         this.player.style.position = 'absolute';
         this.player.style.background = 'url("res/player.svg")';
-        this.container.append(this.player);
+        this.element.append(this.player);
+
+        this.lastBoxBV = this.sokoban.boxBV;
+        this.lastPlayerX = this.sokoban.playerX;
+        this.lastPlayerY = this.sokoban.playerY;
 
         this.resize();
     }
 
     resize() {
-        let elW = this.element.clientWidth;
-        let elH = this.element.clientHeight;
+        let elW = this.container.clientWidth;
+        let elH = this.container.clientHeight;
         let w = elW / this.sokoban.w;
         let h = elH / this.sokoban.h;
         let s = (w < h) ? w : h;
@@ -96,13 +94,12 @@ export default class SokobanView {
         let contH = s*this.sokoban.h;
         let t = ~~((elH-contH)/2);
         let l = ~~((elW-contW)/2);
-        this.container.style.top = (t < 0) ? 0 : t + 'px';
-        this.container.style.left = (l < 0) ? 0 : l + 'px';
+        this.element.style.top = (t < 0) ? 0 : t + 'px';
+        this.element.style.left = (l < 0) ? 0 : l + 'px';
     }
 
-    update() {
+    redraw() {
         this.boxes.innerHTML = '';
-
         const sstr = this.scale + 'px';
         let idx = 0;
         for (let j = 0; j < this.sokoban.h; ++j) {
@@ -112,12 +109,7 @@ export default class SokobanView {
                     sq.style.position = 'absolute';
                     sq.SokX = i;
                     sq.SokY = j;
-                    if (bv.test(this.sokoban.goalBV, idx)) {
-                        sq.style.background = 'url("res/boxgs.svg")';
-                    }
-                    else {
-                        sq.style.background = 'url("res/box.svg")';
-                    }
+                    sq.style.background = 'url("res/box.svg")';
                     sq.style.width = sstr;
                     sq.style.height = sstr;
                     sq.style.top = j*this.scale + 'px';
@@ -134,6 +126,40 @@ export default class SokobanView {
         }
         this.player.style.top = this.sokoban.playerY*this.scale + 'px';
         this.player.style.left = this.sokoban.playerX*this.scale + 'px';
+    }
+
+    update() {
+        this.redraw();
+        return;
+        this.busy = true;
+
+        let mv = this.sokoban.lastMove();
+        let mvLower = mv.toLowerCase();
+        if (mv !== mvLower) {
+            // move box
+            for (let i = 0; i < this.boxes.children.length; ++i) {
+                let b = this.boxes.children[i];
+                if (b.SokX === this.sokoban.playerX && b.SokY === this.sokoban.playerY) {
+                    let dirIdx = S.DMS.indexOf(mv);
+                    let dx = S.DXS[dirIdx];
+                    let dy = S.DYS[dirIdx];
+                    b.SokX += dx;
+                    b.SokY += dy;
+                    b.style.top = b.SokY*this.scale + 'px';
+                    b.style.left = b.SokX*this.scale + 'px';
+                }
+            }
+            // move player
+            this.player.style.top = this.sokoban.playerY*this.scale + 'px';
+            this.player.style.left = this.sokoban.playerX*this.scale + 'px';
+        }
+        else {
+            // move player
+            this.player.style.top = this.sokoban.playerY*this.scale + 'px';
+            this.player.style.left = this.sokoban.playerX*this.scale + 'px';
+        }
+
+        this.busy = false;
     }
 }
 

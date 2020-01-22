@@ -213,6 +213,9 @@ export default class Sokoban {
     }
 
     move(dir) {
+        if (this.completed()) {
+            return false; // Don't allow moves once puzzle complete
+        }
         let dirIdx = S.DMS.indexOf(dir);
         let dx = S.DXS[dirIdx];
         let dy = S.DYS[dirIdx];
@@ -428,7 +431,7 @@ export function runTests() {
 
     s = new Sokoban(
 `#####
-#  @#
+#. @#
 #####`
     );
     let cs = Sokoban.copy(s);

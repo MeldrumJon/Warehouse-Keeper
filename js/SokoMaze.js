@@ -6,6 +6,7 @@ export default class SokoMaze {
     _inBounds(x, y) {
         return (x >= 0 && y >= 0 && x <= this.w && y <= this.h);
     }
+
     _map(x, y) {
         const idx = y*this.w + x;
         return this.map[idx];
@@ -70,24 +71,26 @@ export default class SokoMaze {
         // Convert puzzle to state representation
         this.playerX = -1;
         this.playerY = -1;
+        this.goalX = -1;
+        this.goalY = -1;
         this.boxBV = bv.create(totalSquares);
         this.waterBV = bv.create(totalSquares);
-        this.goalBV = bv.create(totalSquares);
 
         this.map = new Uint8Array(totalSquares);
         let idx = 0;
         for (let j = 0; j < this.h; ++j) {
             for (let i = 0; i < this.w; ++i, ++idx) { // idx incremented too
                 let ch = str[j].charAt(i);
-                if (ch === '@' || ch === '+') {
+                if (ch === '!') {
+                    this.goalX = i;
+                    this.goalY = j;
+                }
+                if (ch === '@') {
                     this.playerX = i;
                     this.playerY = j;
                 }
-                if (ch === '$' || ch === '*') {
+                if (ch === '$') {
                     bv.set(this.boxBV, idx);
-                }
-                if (ch === '+' || ch === '*' || ch === '.') {
-                    bv.set(this.goalBV, idx);
                 }
                 let code = S.C2MAP[ch];
                 this.map[idx] = code ? code : 0;
@@ -188,16 +191,16 @@ export default class SokoMaze {
     }
 
     completed() {
-        for (let i = 0, len = this.goalBV.length; i < len; ++i) {
-            let anded = this.goalBV[i] & this.boxBV[i];
-            if (anded !== this.goalBV[i]) {
-                return false;
-            }
+        if (this.playerX === this.goalX && this.playerY === this.goalY) {
+            return true;
         }
-        return true;
+        return false;
     }
 
     move(dir) {
+        if (this.completed()) {
+            return false; // Don't allow moves once complete
+        }
         let dirIdx = S.DMS.indexOf(dir);
         let dx = S.DXS[dirIdx];
         let dy = S.DYS[dirIdx];
@@ -233,7 +236,7 @@ export default class SokoMaze {
             if (!this._inBounds(nnx, nny)) { return null; }
             const nnidx = nny*this.w + nnx;
             const nncode = this.map[nnidx];
-            if (!nncode || nncode & S.MWALL || bv.test(this.boxBV, nnidx)) {
+            if (!nncode || nncode & (S.MWALL|S.MFINISH) || bv.test(this.boxBV, nnidx)) {
                 return false; // Cannot push into a wall or another box
             }
             if (nncode & S.MWATER && !bv.test(this.waterBV, nnidx)) { // fill in water
@@ -329,6 +332,10 @@ export default class SokoMaze {
         this.moves = this.moves.slice(0, -1);
     }
 
+    lastMove() {
+        return this.moves.slice(-1);
+    }
+
     toString() {
         let str = '';
         let idx = 0;
@@ -340,9 +347,6 @@ export default class SokoMaze {
                     if (code & (S.MFLOOR|S.MWATER)) {
                         str += '@';
                     }
-                    else if (code === S.MGOAL) {
-                        str += '+';
-                    }
                     else {
                         str += '?';
                     }
@@ -351,9 +355,6 @@ export default class SokoMaze {
                 if (bv.test(this.boxBV, idx)) {
                     if (code & (S.MFLOOR|S.MWATER)) {
                         str += '$';
-                    }
-                    else if (code === S.MGOAL) {
-                        str += '*';
                     }
                     else {
                         str += '?';
@@ -379,11 +380,11 @@ export default class SokoMaze {
                     case S.MWALL:
                         str += '#';
                         break;
-                    case S.MGOAL:
-                        str += '.';
-                        break;
                     case S.MWATER:
                         str += '~';
+                        break;
+                    case S.MFLOOR|S.MFINISH:
+                        str += '!';
                         break;
                 }
             }
@@ -395,9 +396,9 @@ export default class SokoMaze {
 export function runTests() {
     let s = new SokoMaze(
 `#######
-#   .+#
-#####@#
-#   . #
+#!    #
+####~@#
+#     #
 #     #
 #######`
     );
@@ -444,7 +445,7 @@ export function runTests() {
 
     s = new SokoMaze(
 `#####
-#.$@#
+# !@#
 #####`
     );
     console.assert(!s.completed());
@@ -463,10 +464,10 @@ export function runTests() {
     
     s = new SokoMaze(
 `####
-# .#
+#  #
 #  ###
-#*@  #
-#  $ #
+#$@  #
+#    #
 #  ###
 ####  `
     );

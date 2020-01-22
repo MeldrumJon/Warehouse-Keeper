@@ -4,6 +4,7 @@ export const MWALL = 0x1;
 export const MGOAL = 0x2;
 export const MFLOOR = 0x4;
 export const MWATER = 0x8;
+export const MFINISH = 0x10;
 export const C2MAP = Object.freeze({
     '\\': MEMPTY,
     '#': MWALL,
@@ -13,7 +14,8 @@ export const C2MAP = Object.freeze({
     '*': MGOAL,
     '.': MGOAL,
     ' ': MFLOOR,
-    '~': MWATER
+    '~': MWATER,
+    '!': MFLOOR|MFINISH
 });
 
 export const DMS = Object.freeze(['u', 'd', 'l', 'r']);

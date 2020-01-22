@@ -5,7 +5,6 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1"> 
 	<title>Warehouse Maze (Sokoban)</title>
 	<link href="style.css" rel="stylesheet">
-	<script defer src="lib/fabric.min.js"></script>
 	<script type="module" src="js/test.js"></script>
 	<script type="module" src="js/app.js"></script>
 </head>
@@ -15,7 +14,7 @@
 		<textarea id="ptext" style="font-family:monospace" rows="20" cols="30">~~~~~~~~~~~
 ~#########~
 ~# $      ~
-.$$~~$  @ ~
+~!$~~$  @ ~
 ~# $~~$   ~
 ~#  $$    ~
 ~#########~
@@ -25,7 +24,7 @@
 		<button id="solveBtn" type="button" style="padding:3px">Solve</button>
 		
 		<h5>Solution:</h5>
-		<div id="solution" style="font-family:monospace">
+		<div id="solution" style="font-family:monospace;overflow-wrap: break-word;">
 		</div>
 	</div>
 	<div id="puzzle">

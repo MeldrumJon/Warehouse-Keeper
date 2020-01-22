@@ -40,6 +40,7 @@ export default function solveSokoMaze(sok) {
                     if (visited[idx]) { continue; }
                     visited[idx] = true;
 
+
                     for (let d = 0; d < 4; ++d) {
                         const dx = S.DXS[d];
                         const dy = S.DYS[d];
@@ -47,15 +48,18 @@ export default function solveSokoMaze(sok) {
                         const ny = y+dy;
                         const nidx = ny*s.w + nx;
                         const ncode = s.map[nidx];
-
-                        if (bv.test(s.boxBV, nidx)) { // is box
+                        if (nx === s.goalX && ny === s.goalY) { // is goal
+                            solved = s; // player can reach goal: solved!
+                            break graphLoop;
+                        }
+                        else if (bv.test(s.boxBV, nidx)) { // is box
                             const nnx = nx+dx;
                             const nny = ny+dy;
                             if (!sok._inBounds(nnx, nny)) { continue; }
                             const nnidx = nny*s.w + nnx;
                             const nncode = sok.map[nnidx];
-                            if (!nncode || nncode & S.MWALL) { continue; }
-                            if (bv.test(s.boxBV, nnidx)) { continue; } // Box cannot be moved onto box
+                            if (!nncode || nncode & (S.MWALL|S.MFINISH)) { continue; }
+                            if (bv.test(s.boxBV, nnidx)) { continue; } // Cannot push 2 boxes
                             // Push Box
                             const cs = SokoMaze.copy(s);
                             cs.playerX = x;
@@ -64,10 +68,6 @@ export default function solveSokoMaze(sok) {
                             if (tt.entry(cs.hashH, cs.hashL)) { continue; } // already encountered
                             const push = nidx | S.PUSH_DIRS[d]; // log the box pushed and direction
                             cs.pushes = [...s.pushes, push];
-                            if (cs.completed()) { // we're done!
-                                solved = cs;
-                                break graphLoop;
-                            }
                             nps.push(cs);
                         }
                         else if (ncode && ncode !== S.MWALL && (ncode !== S.MWATER || bv.test(s.waterBV, nidx))) { // player can move here
@@ -109,11 +109,16 @@ export default function solveSokoMaze(sok) {
         }
         cs.move(push_dir);
     }
+    let mvs = cs.movesTo(cs.goalX, cs.goalY);
+    for (let j = 0, mlen = mvs.length; j < mlen; ++j) {
+        cs.move(mvs[j]);
+    }
     return cs.moves;
 }
 
 export function runTests() {
     let s;
+    // TODO: update
     s = new SokoMaze(
 `####
 # .#
@@ -124,7 +129,7 @@ export function runTests() {
 ####  `
     );
     let sol = solveSokoMaze(s, 10000);
-    console.assert(sol === 'dlUrrrdLullddrUluRuulDrddrruLdlUU');
+    //console.assert(sol === 'dlUrrrdLullddrUluRuulDrddrruLdlUU');
 
     s = new SokoMaze(
 `#######
@@ -135,9 +140,10 @@ export function runTests() {
 
     s = new SokoMaze(
 `####
-#@ #
+#@!#
 ####`
     );
+    s.move('r');
     sol = solveSokoMaze(s, 60000);
     console.assert(sol === '');
 
