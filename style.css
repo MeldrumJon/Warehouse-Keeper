@@ -12,6 +12,14 @@ html, body {
 	top: 1em;
 	right: 1em;
 	bottom: 1em;
-	left: 1em;
+	left: 25%;
 	overflow: scroll;
+}
+#sidebar {
+	position: fixed;
+	background: white;
+	left: 0;
+	right: 75%;
+	top: 0;
+	bottom: 0;
 }

@@ -14,6 +14,8 @@ export default class SokobanView {
         this.element = element;
         this.sokoban = sokoban;
 
+        this.element.innerHTML = '';
+
         this.container = document.createElement('div');
         this.container.style.position = 'absolute';
         this.element.append(this.container);
@@ -122,8 +124,11 @@ export default class SokobanView {
                     sq.style.left = i * this.scale + 'px';
                     this.boxes.append(sq);
                 }
-                if (bv.test(this.sokoban.waterBV, idx)) {
+                if (this.sokoban.map[idx] & S.MWATER && bv.test(this.sokoban.waterBV, idx)) {
                     this.map.children[idx].style.background = 'url("res/waterbox.svg")';
+                }
+                else if (this.sokoban.map[idx] & S.MWATER) {
+                    this.map.children[idx].style.background = 'url("res/water.svg")';
                 }
             }
         }

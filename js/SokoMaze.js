@@ -118,7 +118,7 @@ export default class SokoMaze {
 
     static copy(s) {
         // Copies width, height, playerX, playerY, hashH, hashL
-        let cs = Object.assign(Object.create(Sokoban.prototype), s);
+        let cs = Object.assign(Object.create(SokoMaze.prototype), s);
         // Deep copy state
         cs.boxBV = bv.copy(s.boxBV);
         cs.waterBV = bv.copy(s.waterBV);
@@ -189,7 +189,8 @@ export default class SokoMaze {
 
     completed() {
         for (let i = 0, len = this.goalBV.length; i < len; ++i) {
-            if (this.goalBV[i] !== this.boxBV[i]) {
+            let anded = this.goalBV[i] & this.boxBV[i];
+            if (anded !== this.goalBV[i]) {
                 return false;
             }
         }
@@ -291,15 +292,28 @@ export default class SokoMaze {
             const by = this.playerY + S.DYS[dirIdx];
             const bIdx = by*this.w + bx;
 
-            // clear current box's hash
-            this.hashH ^= this.ZOBBOXH[bIdx];
-            this.hashL ^= this.ZOBBOXL[bIdx];
-            // set box position
-            bv.clear(this.boxBV, bIdx);
-            bv.set(this.boxBV, pIdx);
-            // set box's hash
-            this.hashH ^= this.ZOBBOXH[pIdx];
-            this.hashL ^= this.ZOBBOXL[pIdx];
+            if (bv.test(this.boxBV, bIdx)) { // box was pushed onto spot
+                // clear current box's hash
+                this.hashH ^= this.ZOBBOXH[bIdx];
+                this.hashL ^= this.ZOBBOXL[bIdx];
+                // set box position
+                bv.clear(this.boxBV, bIdx);
+                bv.set(this.boxBV, pIdx);
+                // set box's hash
+                this.hashH ^= this.ZOBBOXH[pIdx];
+                this.hashL ^= this.ZOBBOXL[pIdx];
+            }
+            else if (bv.test(this.waterBV, bIdx)) { // box was pushed into water
+                // clear current water's hash
+                this.hashH ^= this.ZOBWATERH[bIdx];
+                this.hashL ^= this.ZOBWATERL[bIdx];
+                // set box position
+                bv.clear(this.waterBV, bIdx);
+                bv.set(this.boxBV, pIdx);
+                // set box's hash
+                this.hashH ^= this.ZOBBOXH[pIdx];
+                this.hashL ^= this.ZOBBOXL[pIdx];
+            }
 
             // clear current player hash
             this.hashH ^= this.ZOBPLAYERH[this.normIdx];
@@ -378,83 +392,83 @@ export default class SokoMaze {
     }
 }
 
-//export function runTests() {
-//    let s = new Sokoban(
-//`#######
-//#   .+#
-//#####@#
-//#   . #
-//#     #
-//#######`
-//    );
-//    console.assert(s.normIdx === (1*s.w + 1));
-//
-//    s = new Sokoban(
-//`######
-//#    #
-//# $ @#
-//######`
-//    );
-//    let hH = s.hashH;
-//    let hL = s.hashL;
-//    s.move('u');
-//    s.move('l');
-//    s.move('l');
-//    s.move('l');
-//    s.move('l');
-//    s.move('l');
-//    s.move('l');
-//    s.move('l');
-//    s.move('l');
-//    s.move('d');
-//    s.move('r');
-//    console.assert(hH !== s.hashH);
-//    console.assert(hL !== s.hashL);
-//    s.move('u');
-//    s.move('r');
-//    s.move('r');
-//    s.move('r');
-//    s.move('r');
-//    s.move('r');
-//    s.move('r');
-//    s.move('r');
-//    s.move('d');
-//    s.move('l');
-//    console.assert(hH === s.hashH);
-//    console.assert(hL === s.hashL);
-//    while(s.moves.length) {
-//        s.undo();
-//    }
-//    console.assert(hH === s.hashH);
-//    console.assert(hL === s.hashL);
-//
-//    s = new Sokoban(
-//`#####
-//#.$@#
-//#####`
-//    );
-//    console.assert(!s.completed());
-//    s.move('l');
-//    console.assert(s.completed());
-//
-//    s = new Sokoban(
-//`#####
-//#  @#
-//#####`
-//    );
-//    let cs = Sokoban.copy(s);
-//    cs.move('l');
-//    console.assert(s.playerX === 3);
-//    console.assert(cs.playerX === 2);
-//    
-//    s = new Sokoban(
-//`####
-//# .#
-//#  ###
-//#*@  #
-//#  $ #
-//#  ###
-//####  `
-//    );
-//    console.assert(s.movesTo(1, 2) === 'ul');
-//}
+export function runTests() {
+    let s = new SokoMaze(
+`#######
+#   .+#
+#####@#
+#   . #
+#     #
+#######`
+    );
+    console.assert(s.normIdx === (1*s.w + 1));
+
+    s = new SokoMaze(
+`######
+#    #
+# $ @#
+######`
+    );
+    let hH = s.hashH;
+    let hL = s.hashL;
+    s.move('u');
+    s.move('l');
+    s.move('l');
+    s.move('l');
+    s.move('l');
+    s.move('l');
+    s.move('l');
+    s.move('l');
+    s.move('l');
+    s.move('d');
+    s.move('r');
+    console.assert(hH !== s.hashH);
+    console.assert(hL !== s.hashL);
+    s.move('u');
+    s.move('r');
+    s.move('r');
+    s.move('r');
+    s.move('r');
+    s.move('r');
+    s.move('r');
+    s.move('r');
+    s.move('d');
+    s.move('l');
+    console.assert(hH === s.hashH);
+    console.assert(hL === s.hashL);
+    while(s.moves.length) {
+        s.undo();
+    }
+    console.assert(hH === s.hashH);
+    console.assert(hL === s.hashL);
+
+    s = new SokoMaze(
+`#####
+#.$@#
+#####`
+    );
+    console.assert(!s.completed());
+    s.move('l');
+    console.assert(s.completed());
+
+    s = new SokoMaze(
+`#####
+#  @#
+#####`
+    );
+    let cs = SokoMaze.copy(s);
+    cs.move('l');
+    console.assert(s.playerX === 3);
+    console.assert(cs.playerX === 2);
+    
+    s = new SokoMaze(
+`####
+# .#
+#  ###
+#*@  #
+#  $ #
+#  ###
+####  `
+    );
+    console.assert(s.movesTo(1, 2) === 'ul');
+}
