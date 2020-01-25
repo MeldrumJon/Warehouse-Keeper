@@ -3,6 +3,10 @@ export function create(len) {
     return new Int32Array(items);
 }
 
+export function copy(bv) {
+    return new Int32Array(bv);
+}
+
 export function set(bv, idx) {
     const item = idx >>> 5;
     const bit = idx & 0x1F;
@@ -21,8 +25,13 @@ export function test(bv, idx) {
     return bv[item] & (0x1 << bit);
 }
 
-export function copy(bv) {
-    return new Int32Array(bv);
+export function fill(bv, value) {
+    if (value) {
+        bv.fill(~0);
+    }
+    else {
+        bv.fill(0);
+    }
 }
 
 export function runTests() {
@@ -37,4 +46,11 @@ export function runTests() {
     clear(bv, 34);
     console.assert(!test(bv, 34));
     console.assert(test(cv, 34));
+
+    fill(bv, true);
+    console.assert(test(bv, 34));
+    console.assert(test(bv, 0));
+    fill(bv, false);
+    console.assert(!test(bv, 34));
+    console.assert(!test(bv, 0));
 }
