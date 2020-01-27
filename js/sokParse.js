@@ -1,73 +1,10 @@
-function isBoardLine(line) {
-    const sokobanRegex = /^[- _#@+pP$*bB.0-9()|]+$/;
-    if (sokobanRegex.test(line) && /#/.test(line)) {
-        return true;
-    }
-    else {
-        return false;
-    }
-}
-
-function isBlankLine(line) {
-    return /^\s*$/.test(line);
-}
-
-function rleDecode(str) {
-    let intStack = [];
-    let strStack = [];
-    for (let i = 0; i < str.length; ++i) {
-        if (/\d/.test(str[i])) { // is digit
-            let intStr = '';
-            while (/\d/.test(str[i])) {
-                // get full number
-                intStr += str[i];
-                ++i;
-            }
-            let num = parseInt(intStr, 10);
-            if (str[i] === '(') {
-                strStack.push(str[i]);
-                intStack.push(num);
-            }
-            else {
-                strStack.push(str[i].repeat(num));
-            }
-        }
-        else if (str[i] === ')') {
-            let tmp = '';
-            let pop = strStack.pop();
-            while (pop !== '(') {
-                tmp = pop + tmp;
-                pop = strStack.pop();
-            }
-            tmp = tmp.repeat(intStack.pop());
-            strStack.push(tmp);
-        }
-        else if (str[i] === '(') {
-            if (/\d/.test(str[i-1])) {
-                strStack.push(str[i]);
-            }
-            else {
-                strStack.push(str[i]);
-                intStack.push(1);
-            }
-        }
-        else {
-            strStack.push(str[i]);
-        }
-    }
-
-    let result = '';
-    while (strStack.length) {
-        result = strStack.pop() + result;
-    }
-    return result;
-}
+import * as str from './strings.js';
 
 export default function sokParse(ftext) {
     let lines = ftext.split(/\r?\n/);
 
     let notes = [[]];
-    let puzzles = [null]; // first notes are for the file header
+    let puzzles = [null]; // notes[0] is file header
     let titles = [null];
     
     let idx = 0;
@@ -80,7 +17,7 @@ export default function sokParse(ftext) {
         let puzzleBuf = puzzles[idx];
         switch (state) {
             case 'notes':
-                if (isBoardLine(line)) { // new puzzle
+                if (str.isBoardLine(line)) { // new puzzle
                     if (potentialTitle) {
                         // Puzzle notes never gave title, so the potential title
                         // is probably the title.
@@ -88,13 +25,13 @@ export default function sokParse(ftext) {
                         potentialTitle = null;
                     }
                     let lastLine = noteBuf[noteBuf.length-1];
-                    if (isBlankLine(lastLine)) {
+                    if (str.isBlankLine(lastLine)) {
                         noteBuf.pop();
                     }
                     lastLine = noteBuf[noteBuf.length-1];
                     let secondLastLine = noteBuf[noteBuf.length-2];
-                    if (lastLine && !isBlankLine(lastLine)
-                        && (!secondLastLine || isBlankLine(secondLastLine))
+                    if (lastLine && !str.isBlankLine(lastLine)
+                        && (!secondLastLine || str.isBlankLine(secondLastLine))
                         && lastLine.indexOf(':') < 0) // not a key-value pair
                     {
                         // An independent line precedes the puzzle,
@@ -127,7 +64,7 @@ export default function sokParse(ftext) {
                 for (; l < lines.length; ++l) {
                     // keep reading lines until puzzle ends
                     line = lines[l];
-                    if (!isBoardLine(line)) {
+                    if (!str.isBoardLine(line)) {
                         break;
                     }
                     puzzles[idx].push(line);
@@ -144,7 +81,9 @@ export default function sokParse(ftext) {
     }
 
     let collection = {
-        puzzles: []
+        t: null, // collections ought to have title and author, so they are defined
+        a: null,
+        p: []
     };
 
     let fileHeader = notes[0];
@@ -152,32 +91,32 @@ export default function sokParse(ftext) {
         let line = fileHeader[l];
         const nameRegex = /^Collection\s*:\s*/i;
         if (nameRegex.test(line)) {
-            collection.name = line.replace(nameRegex, '');
+            collection.t = line.replace(nameRegex, '');
         }
         const authorRegex = /^Author\s*:\s*/i;
         if (authorRegex.test(line)) {
-            collection.author = line.replace(authorRegex, '');
+            collection.a = line.replace(authorRegex, '');
         }
     }
 
     for (let i = 1; i < puzzles.length; ++i) {
         let puzzle = {
-            str: ''
+            s: ''
         };
 
         if (titles[i]) {
             const xsbRegex = /^;\s*/;
             if (xsbRegex.test(titles[i])) {
-                puzzle.title = titles[i].replace(xsbRegex, '');
+                puzzle.t = titles[i].replace(xsbRegex, '');
             }
             else {
-                puzzle.title = titles[i];
+                puzzle.t = titles[i];
             }
         }
 
         let puzzleLines = puzzles[i];
         for (let l = 0; l < puzzleLines.length; ++l) {
-            if (l) { puzzle.str += '\n'; }
+            if (l) { puzzle.s += '|'; }
             let line = puzzleLines[l];
             // standardize board
             line = line.replace(/p/g, '@');
@@ -187,55 +126,27 @@ export default function sokParse(ftext) {
             line = line.replace(/-/g, ' ');
             line = line.replace(/_/g, ' ');
             line = line.replace(/w/g, '~');
-            line = rleDecode(line);
+            line = str.rleDecode(line);
             line = line.replace(/|$/g, ''); // ignore | if at the end of line
-            line = line.replace(/\|/g, '\n');
-            puzzle.str += line;
+            puzzle.s += line;
         }
+        puzzle.s = str.rleEncode(puzzle.s); // compress puzzle for storage
         
         let noteLines = notes[i];
         for (let l = 0; l < noteLines.length; ++l) {
             let line = noteLines[l];
             const titleRegex = /^Title\s*:\s*/i;
             if (titleRegex.test(line)) {
-                puzzle.title = line.replace(titleRegex, '');
+                puzzle.t = line.replace(titleRegex, '');
             }
             const authorRegex = /^Author\s*:\s*/i;
             if (authorRegex.test(line)) {
-                puzzle.author = line.replace(authorRegex, '');
+                puzzle.a = line.replace(authorRegex, '');
             }
         }
 
-        collection.puzzles.push(puzzle);
+        collection.p.push(puzzle);
     }
     return collection;
-}
-
-export function runTests() {
-    console.assert(isBlankLine(''));
-    console.assert(isBlankLine('   '));
-    console.assert(isBlankLine(' \t  '));
-    console.assert(!isBlankLine('a'));
-
-    console.assert(isBoardLine('# .**$@#'));
-    console.assert(isBoardLine('# bp #.#'));
-    console.assert(isBoardLine('7#|#.@-#-#|#$*-$-#|#3-$-#|#-..--#|#--*--#|7#'));
-    console.assert(isBoardLine('2(3(#-)#)'));
-    console.assert(!isBoardLine('a'));
-    console.assert(!isBoardLine('author'));
-
-    console.assert(
-        rleDecode('7#|#.@-#-#|#$*-$-#|#3-$-#|#-..--#|#--*--#|7#')
-        ===
-        '#######|#.@-#-#|#$*-$-#|#---$-#|#-..--#|#--*--#|#######'
-    );
-    console.assert(
-        rleDecode('3#|#.3#|#*$-#|#--@#|5#')
-        ===
-        '###|#.###|#*$-#|#--@#|#####'
-    );
-    console.assert(rleDecode('3#4-p.#') === '###----p.#');
-    console.assert(rleDecode('2(3(#(-))#)') === '#-#-#-##-#-#-#');
-    console.assert(rleDecode('2(abc3(xyz))') === 'abcxyzxyzxyzabcxyzxyzxyz');
 }
 

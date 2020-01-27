@@ -15,11 +15,16 @@ html, body {
 	left: 25%;
 	overflow: scroll;
 }
-#sidebar {
+.sidebar {
 	position: fixed;
 	background: white;
 	left: 0;
 	right: 75%;
 	top: 0;
 	bottom: 0;
+	overflow: scroll;
+}
+li.hide ul {
+	display: none;
+
 }

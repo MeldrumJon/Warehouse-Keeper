@@ -1,33 +1,17 @@
 // Constants for map
-export const MEMPTY = 0x0;
-export const MWALL = 0x1;
-export const MGOAL = 0x2;
-export const MFLOOR = 0x4;
-export const MWATER = 0x8;
-export const MFINISH = 0x10;
-export const C2MAP = Object.freeze({
-    '\\': MEMPTY,
-    '#': MWALL,
-    '@': MFLOOR,
-    '+': MGOAL,
-    '$': MFLOOR,
-    '*': MGOAL,
-    '.': MGOAL,
-    ' ': MFLOOR,
-    '~': MWATER,
-    '!': MFLOOR|MFINISH
-});
+export const MFLOOR = 0x1;
+export const MWALL = 0x0;
 
 export const DMS = Object.freeze(['u', 'd', 'l', 'r']);
 export const DXS = Object.freeze([0,  0, -1, 1]);
 export const DYS = Object.freeze([-1, 1,  0, 0]);
-
-export const DDIRS = ['u', 'l', '', 'r', 'd'];
-export function _DIR(dx, dy) {
+export function DIR(dx, dy) {
+    const DDIRS = Object.freeze(['u', 'l', '', 'r', 'd']);
     const i = dy*2 + dx + 2;
     return DDIRS[i];
 }
 
+// Directions correspond to order of DMS/DXS/DYS
 export const PUSH_SHIFT = 30;
 export const PUSH_UP = 0x0 << PUSH_SHIFT;
 export const PUSH_DOWN = 0x1 << PUSH_SHIFT;

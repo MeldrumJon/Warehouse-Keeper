@@ -1,191 +1,120 @@
-import * as S from './consts.js';
+import * as str from './strings.js';
+import * as S from './sokoConsts.js';
 import PCG32 from './PCG32.js';
-import * as bv from './bitVector.js';
+import BitVector from './BitVector.js';
 
 export default class Sokoban {
-    _map(x, y) {
-        const idx = y*this.w + x;
-        return this.map[idx];
-    }
+    _getIdx(x, y) { return y*this.K.w + x; }
 
-    _updateNormalization() {
-        let normX = this.playerX;
-        let normY = this.playerY;
+    _floor(x, y) { return this.K.floor[this._getIdx(x, y)]; }
 
-        const visited = new Uint8Array(this.map.length);
-        let xs = [normX];
-        let ys = [normY];
-        while (xs.length) {
-            const nxs = [];
-            const nys = [];
-            for (let k = 0, len = xs.length; k < len; ++k) {
-                const i = xs[k]
-                const j = ys[k];
-                const idx = j*this.w + i;
-                // Already checked this point
-                if (visited[idx]) { continue; }
-                visited[idx] = 1;
-                // Coordinate is unreachable
-                const code = this.map[idx];
-                if (!code || code & S.MWALL || bv.test(this.boxBV, idx)) {
-                    continue;
-                }
-                // Update normalized position
-                if (i <= normX) {
-                    normX = i;
-                    if (j < normY) {
-                        normY = j;
-                    }
-                }
-                // Test surrounding points
-                for (let d = 0; d < 4; ++d) {
-                    nxs.push(i+S.DXS[d]);
-                    nys.push(j+S.DYS[d]);
-                }
-            }
-            xs = nxs;
-            ys = nys;
+    constructor(s) {
+        this.K = {}; // immutable data, not duplicated when copying
+
+        /*
+         * Parse String
+         */
+        s = str.rleDecode(s).split(/\r?\n|\|/);
+
+        // Get dimensions of puzzle
+        this.K.h = s.length;
+        this.K.w = 0;
+        for (let j = 0; j < this.K.h; ++j) {
+            let width = s[j].length;
+            if (width > this.K.w) { this.K.w = width; }
         }
-        this.normIdx = normY*this.w + normX;
-    }
-
-    constructor(str) {
-        str = str.split(/\r?\n/);
-        // Dimensions of puzzle
-        this.h = str.length;
-        this.w = 0;
-        for (let i = 0; i < this.h; ++i) {
-            let len = str[i].length;
-            if (len > this.w) {
-                this.w = len;
-            }
-        }
-        const totalSquares = this.w*this.h;
+        this.K.totalSqs = this.K.w*this.K.h;
         // Convert puzzle to state representation
         this.playerX = -1;
         this.playerY = -1;
-        this.boxBV = bv.create(totalSquares);
-        this.goalBV = bv.create(totalSquares);
-
-        this.map = new Uint8Array(totalSquares);
-        let idx = 0;
-        for (let j = 0; j < this.h; ++j) {
-            for (let i = 0; i < this.w; ++i, ++idx) { // idx incremented too
-                let ch = str[j].charAt(i);
+        this.boxBV = new BitVector(this.K.totalSqs);
+        this.K.goalBV = new BitVector(this.K.totalSqs);
+        this.K.floor = new Uint8Array(this.K.totalSqs);
+        for (let idx = 0, j = 0; j < this.K.h; ++j) { // idx init!
+            for (let i = 0; i < this.K.w; ++i, ++idx) { // idx inc!
+                let ch = s[j].charAt(i);
                 if (ch === '@' || ch === '+') {
                     this.playerX = i;
                     this.playerY = j;
                 }
                 if (ch === '$' || ch === '*') {
-                    bv.set(this.boxBV, idx);
+                    this.boxBV.set(idx);
                 }
                 if (ch === '+' || ch === '*' || ch === '.') {
-                    bv.set(this.goalBV, idx);
+                    this.K.goalBV.set(idx);
                 }
-                let code = S.C2MAP[ch];
-                this.map[idx] = code ? code : 0;
-            }
-        }
-        // Hide unreachable squares
-        const reachable = new Uint8Array(totalSquares);
-        let xs = [this.playerX];
-        let ys = [this.playerY];
-        while (xs.length) {
-            let nxs = [];
-            let nys = [];
-            for (let k = 0, len = xs.length; k < len; ++k) {
-                let i = xs[k];
-                let j = ys[k];
-                let idx = this.w*j + i;
-                // Coordinate has already been visited
-                if (reachable[idx]) {
-                    continue;
-                }
-                // Coordinate is obviously unreachable
-                let code = this.map[idx];
-                if (!code || code & S.MWALL) {
-                    continue;
-                }
-                // Coordinate is reachable
-                reachable[idx] = 1;
-                for (let d = 0; d < 4; ++d) {
-                    nxs.push(i+S.DXS[d]);
-                    nys.push(j+S.DYS[d]);
-                }
-            }
-            xs = nxs;
-            ys = nys;
-        }
-        for (let i = 0; i < totalSquares; ++i) {
-            if (!reachable[i] && this.map[i] === S.C2MAP[' ']) {
-                this.map[i] = 0;
+                this.K.floor[idx] = (ch === '') ? S.MWALL
+                              : (ch === '#') ? S.MWALL
+                              : S.MFLOOR;
             }
         }
 
-        // Zobrist hashing
-        this.ZOBBOXH = new Int32Array(totalSquares);
-        this.ZOBBOXL = new Int32Array(totalSquares);
-        this.ZOBPLAYERH = new Int32Array(totalSquares);
-        this.ZOBPLAYERL = new Int32Array(totalSquares);
+        /*
+         * Zobrist hashing
+         */
+        this.K.ZOBBOXH = new Int32Array(this.K.totalSqs);
+        this.K.ZOBBOXL = new Int32Array(this.K.totalSqs);
+        this.K.ZOBPLAYERH = new Int32Array(this.K.totalSqs);
+        this.K.ZOBPLAYERL = new Int32Array(this.K.totalSqs);
         const SEED = 1575579901796n;
         const rng = new PCG32(SEED);
-        for (let i = 0; i < totalSquares; ++i) {
-            this.ZOBBOXH[i] = rng.rand();
-            this.ZOBBOXL[i] = rng.rand();
-            this.ZOBPLAYERH[i] = rng.rand();
-            this.ZOBPLAYERL[i] = rng.rand();
+        for (let idx = 0; idx < this.K.totalSqs; ++idx) {
+            this.K.ZOBBOXH[idx] = rng.rand();
+            this.K.ZOBBOXL[idx] = rng.rand();
+            this.K.ZOBPLAYERH[idx] = rng.rand();
+            this.K.ZOBPLAYERL[idx] = rng.rand();
         }
         this.rehash();
 
-        this.moves = '';
+        Object.freeze(this.K);
     }
 
     static copy(s) {
         // Copies width, height, playerX, playerY, hashH, hashL
-        let cs = Object.assign(Object.create(Sokoban.prototype), s);
-        // Deep copy state
-        cs.boxBV = bv.copy(s.boxBV);
-        // Map should be referenced, since it is immutable
-        // Goal list should be referenced, since it is immutable
-        // Zobrist object should be referenced
-        // moves string can be referenced, since String type is immutable
+        let cs = Object.create(Sokoban.prototype);
+        cs.K = s.K;
+        cs.playerX = s.playerX;
+        cs.playerY = s.playerY;
+        cs.boxBV = BitVector.copy(s.boxBV);
+        cs.normIdx = s.normIdx;
+        cs.hashH = s.hashH;
+        cs.hashL = s.hashL;
         return cs;
     }
 
-    movesTo(x, y) {
-        const visited = new Uint8Array(this.map.length);
-        let xs = [this.playerX];
-        let ys = [this.playerY];
-        let mvs = [''];
+    completed() { return this.K.goalBV.eq(this.boxBV); }
+
+    _updateNormalization(visitedCache, normIdxCache) {
+        const visited = (visitedCache) ? visitedCache 
+                      : new BitVector(this.K.totalSqs);
+        let nIdx = (normIdxCache) ? normIdxCache
+                    : this._getIdx(this.playerX, this.playerY);
+
+        let xs = [this.playerX], ys = [this.playerY];
         while (xs.length) {
-            let nxs = [];
-            let nys = [];
-            let nmvs = [];
+            const nxs = [], nys = [];
             for (let k = 0, len = xs.length; k < len; ++k) {
-                let i = xs[k];
-                let j = ys[k];
-                if (i === x && j === y) { return mvs[k]; } // Done!
-                let idx = j*this.w + i;
+                const x = xs[k], y = ys[k];
+                const idx = this._getIdx(x, y);;
                 // Already checked this point
-                if (visited[idx]) { continue; }
-                visited[idx] = 1;
+                if (visited.test(idx)) { continue; }
+                visited.set(idx);
                 // Coordinate is unreachable
-                let code = this.map[idx];
-                if (!code || code & S.MWALL || bv.test(this.boxBV, idx)) {
+                if (!this.K.floor[idx] || this.boxBV.test(idx)) { // wall/box in way
                     continue;
+                }
+                // Update normalized position
+                if (idx <= nIdx) {
+                    nIdx = idx;
                 }
                 // Test surrounding points
                 for (let d = 0; d < 4; ++d) {
-                    nxs.push(i+S.DXS[d]);
-                    nys.push(j+S.DYS[d]);
-                    nmvs.push(mvs[k]+S.DMS[d]);
+                    nxs.push(x+S.DXS[d]); nys.push(y+S.DYS[d]);
                 }
             }
-            xs = nxs;
-            ys = nys;
-            mvs = nmvs;
+            xs = nxs; ys = nys;
         }
-        return null;
+        this.normIdx = nIdx;
     }
 
     rehash() {
@@ -193,22 +122,108 @@ export default class Sokoban {
         this.hashL = 0;
         // player hash
         this._updateNormalization();
-        this.hashH ^= this.ZOBPLAYERH[this.normIdx];
-        this.hashL ^= this.ZOBPLAYERL[this.normIdx];
-        for (let i = 0, len = this.map.length; i < len; ++i) {
-            if (bv.test(this.boxBV, i)) {
-                this.hashH ^= this.ZOBBOXH[i];
-                this.hashL ^= this.ZOBBOXL[i];
+        this.hashH ^= this.K.ZOBPLAYERH[this.normIdx];
+        this.hashL ^= this.K.ZOBPLAYERL[this.normIdx];
+        for (let idx = 0; idx < this.K.totalSqs; ++idx) {
+            if (this.boxBV.test(idx)) {
+                this.hashH ^= this.K.ZOBBOXH[idx];
+                this.hashL ^= this.K.ZOBBOXL[idx];
             }
         }
     }
 
-    completed() {
-        for (let i = 0, len = this.goalBV.length; i < len; ++i) {
-            if (this.goalBV[i] !== this.boxBV[i]) {
-                return false;
+    movesTo(destX, destY) {
+        const visited = new BitVector(this.K.totalSqs);
+        let xs = [this.playerX], ys = [this.playerY];
+        let mvs = [''];
+        while (xs.length) {
+            const nxs = [], nys = [];
+            const nmvs = [];
+            for (let k = 0, len = xs.length; k < len; ++k) {
+                const x = xs[k], y = ys[k];
+                if (x === destX && y === destY) { return mvs[k]; } // Done!
+                const idx = this._getIdx(x, y);
+                // Already checked this point
+                if (visited.test(idx)) { continue; }
+                visited.set(idx);
+                // Coordinate is unreachable
+                if (!this.K.floor[idx] || this.boxBV.test(idx)) { // wall/box in the way
+                    continue;
+                }
+                // Test surrounding points
+                for (let d = 0; d < 4; ++d) {
+                    nxs.push(x+S.DXS[d]); nys.push(y+S.DYS[d]);
+                    nmvs.push(mvs[k]+S.DMS[d]);
+                }
             }
+            xs = nxs; ys = nys;
+            mvs = nmvs;
         }
+        return null;
+    }
+
+    push(x, y, dx, dy, visitedCache, normIdxCache) {
+        const idx = this._getIdx(x, y);
+        const nx = x+dx;
+        const ny = y+dy;
+        const nidx = this._getIdx(nx, ny);
+        if (!this.K.floor[nidx] || this.boxBV.test(nidx)) { // cannot push into wall/box
+            return false;
+        }
+        // Clear current hash
+        this.hashH ^= this.K.ZOBBOXH[idx];
+        this.hashL ^= this.K.ZOBBOXL[idx];
+        // Update box's position
+        this.boxBV.clear(idx);
+        this.boxBV.set(nidx);
+        // Set box's hash
+        this.hashH ^= this.K.ZOBBOXH[nidx];
+        this.hashL ^= this.K.ZOBBOXL[nidx];
+
+        // clear current player hash
+        this.hashH ^= this.K.ZOBPLAYERH[this.normIdx];
+        this.hashL ^= this.K.ZOBPLAYERL[this.normIdx];
+        // set player position
+        this.playerX = x;
+        this.playerY = y;
+        this._updateNormalization(visitedCache, normIdxCache);
+        // update player's hash
+        this.hashH ^= this.K.ZOBPLAYERH[this.normIdx];
+        this.hashL ^= this.K.ZOBPLAYERL[this.normIdx];
+        return true;
+    }
+
+    pull(x, y, rdx, rdy) {
+        const idx = this._getIdx(x, y);
+        const bx = x-rdx;
+        const by = y-rdy;
+        const bidx = this._getIdx(bx, by);
+        const px = bx-rdx;
+        const py = by-rdy;
+        const pidx = this._getIdx(px, py);
+        if (!this.K.floor[pidx] || this.boxBV.test(pidx)) { // cannot move player on wall/box
+            return false;
+        }
+        // Clear current box hash
+        this.hashH ^= this.K.ZOBBOXH[idx];
+        this.hashL ^= this.K.ZOBBOXL[idx];
+        // Update box's position
+        this.boxBV.clear(idx);
+        this.boxBV.set(bidx);
+        // Set box's hash
+        this.hashH ^= this.K.ZOBBOXH[bidx];
+        this.hashL ^= this.K.ZOBBOXL[bidx];
+
+        // clear current player hash
+        this.hashH ^= this.K.ZOBPLAYERH[this.normIdx];
+        this.hashL ^= this.K.ZOBPLAYERL[this.normIdx];
+        // set player position
+        this.playerX = px;
+        this.playerY = py;
+        this._updateNormalization();
+        // update player's hash
+        this.hashH ^= this.K.ZOBPLAYERH[this.normIdx];
+        this.hashL ^= this.K.ZOBPLAYERL[this.normIdx];
         return true;
     }
 
@@ -216,157 +231,76 @@ export default class Sokoban {
         if (this.completed()) {
             return false; // Don't allow moves once puzzle complete
         }
-        let dirIdx = S.DMS.indexOf(dir);
-        let dx = S.DXS[dirIdx];
-        let dy = S.DYS[dirIdx];
-
-        let mv = this._move(dx, dy);
-        if (mv) {
-            this.moves += mv;
-            return true;
+        if (!this.moves) {
+            this.moves = ''; // Time to start keeping track of moves
         }
-        return false;
-    }
+        const didx = S.DMS.indexOf(dir);
+        const dx = S.DXS[didx];
+        const dy = S.DYS[didx];
 
-    _move(dx, dy) {
         const nx = this.playerX+dx;
         const ny = this.playerY+dy;
-        const nidx = ny*this.w + nx;
-        const ncode = this.map[nidx];
-        if (!ncode || ncode & S.MWALL) {
-            return null; // cannot walk into a wall
+        const nidx = this._getIdx(nx, ny);
+        if (!this.K.floor[nidx]) {
+            return false;
         }
-        if (!bv.test(this.boxBV, nidx)) { // empty space
-            this.playerX = nx;
-            this.playerY = ny;
-            return S._DIR(dx, dy);
-        }
-        else { // has a box
-            const nnx = nx+dx;
-            const nny = ny+dy;
-            const nnidx = nny*this.w + nnx;
-            const nncode = this.map[nnidx];
-            if (!nncode || nncode & S.MWALL || bv.test(this.boxBV, nnidx)) {
-                return false; // Cannot push into a wall or another box
+        else if (this.boxBV.test(nidx)) {
+            if (this.push(nx, ny, dx, dy)) {
+                this.moves += S.DMS[didx].toUpperCase();
+                return true;
             }
-            // Pushable box
-            // Clear current box's hash
-            this.hashH ^= this.ZOBBOXH[nidx];
-            this.hashL ^= this.ZOBBOXL[nidx];
-            // Update box's position
-            bv.clear(this.boxBV, nidx);
-            bv.set(this.boxBV, nnidx);
-            // Set box's hash
-            this.hashH ^= this.ZOBBOXH[nnidx];
-            this.hashL ^= this.ZOBBOXL[nnidx];
-
-            // clear current player hash
-            this.hashH ^= this.ZOBPLAYERH[this.normIdx];
-            this.hashL ^= this.ZOBPLAYERL[this.normIdx];
-            // set new player position
+            return false;
+        }
+        else {
             this.playerX = nx;
             this.playerY = ny;
-            // set the new player hash
-            this._updateNormalization();
-            this.hashH ^= this.ZOBPLAYERH[this.normIdx];
-            this.hashL ^= this.ZOBPLAYERL[this.normIdx];
-
-            return S._DIR(dx, dy).toUpperCase();
+            this.moves += S.DMS[didx];
+            return true;
         }
-        return false;
     }
 
     undo() {
-        if (this.moves.length < 1) { return; }
+        if (!this.moves) { return; } // empty string or undefined
         const mv = this.moves.slice(-1);
-        const mvLower = mv.toLowerCase();
-        const dirIdx = S.DMS.indexOf(mvLower);
+        const mvLC = mv.toLowerCase();
 
-        const lx = this.playerX - S.DXS[dirIdx];
-        const ly = this.playerY - S.DYS[dirIdx];
+        const didx = S.DMS.indexOf(mvLC);
+        const dx = S.DXS[didx];
+        const dy = S.DYS[didx];
 
-        if (mv === mvLower) { // undo move
-            this.playerX = lx;
-            this.playerY = ly;
+        if (mv !== mvLC) { // undo push
+            this.pull(this.playerX+dx, this.playerY+dy, dx, dy);
         }
-        else { // undo push
-            const pIdx = this.playerY*this.w + this.playerX;
-            const bx = this.playerX + S.DXS[dirIdx];
-            const by = this.playerY + S.DYS[dirIdx];
-            const bIdx = by*this.w + bx;
-
-            // clear current box's hash
-            this.hashH ^= this.ZOBBOXH[bIdx];
-            this.hashL ^= this.ZOBBOXL[bIdx];
-            // set box position
-            bv.clear(this.boxBV, bIdx);
-            bv.set(this.boxBV, pIdx);
-            // set box's hash
-            this.hashH ^= this.ZOBBOXH[pIdx];
-            this.hashL ^= this.ZOBBOXL[pIdx];
-
-            // clear current player hash
-            this.hashH ^= this.ZOBPLAYERH[this.normIdx];
-            this.hashL ^= this.ZOBPLAYERL[this.normIdx];
-            // set new player position
-            this.playerX = lx;
-            this.playerY = ly;
-            // set the new player hash
-            this._updateNormalization();
-            this.hashH ^= this.ZOBPLAYERH[this.normIdx];
-            this.hashL ^= this.ZOBPLAYERL[this.normIdx];
+        else { // undo move
+            this.playerX -= dx;
+            this.playerY -= dy;
         }
         this.moves = this.moves.slice(0, -1);
     }
 
     toString() {
-        let str = '';
-        let idx = 0;
-        for (let j = 0; j < this.h; ++j) {
-            if (j) { str += '\r\n'; }
-            for (let i = 0; i < this.w; ++i, ++idx) { // inc IDX too
-                let code = this.map[idx];
+        let s = '';
+        for (let idx = 0, j = 0; j < this.K.h; ++j) { // idx init!
+            if (j) { s += '\r\n'; }
+            for (let i = 0; i < this.K.w; ++i, ++idx) { // idx inc!
                 if (i === this.playerX && j === this.playerY) {
-                    if (code === MFLOOR) {
-                        str += '@';
-                    }
-                    else if (code === MGOAL) {
-                        str += '+';
-                    }
-                    else {
-                        str += '?';
-                    }
+                    if (this.K.goalBV.test(idx)) { s += '+'; }
+                    else { s += '@'; }
                 }
-                else if (bv.test(this.boxBV, idx)) {
-                    if (code === MFLOOR) {
-                        str += '$';
-                    }
-                    else if (code === MGOAL) {
-                        str += '*';
-                    }
-                    else {
-                        str += '?';
-                    }
+                else if (this.boxBV.test(idx)) {
+                    if (this.K.goalBV.test(idx)) { s += '*'; }
+                    else { s += '$'; }
+                }
+                else if (this.K.goalBV.test(idx)) {
+                    s += '.';
                 }
                 else {
-                    switch (code) {
-                        case MEMPTY:
-                            str += '\\';
-                            break;
-                        case MFLOOR:
-                            str += ' ';
-                            break;
-                        case MWALL:
-                            str += '#';
-                            break;
-                        case MGOAL:
-                            str += '.';
-                            break;
-                    }
+                    if (this.K.floor[idx]) { s += ' '; }
+                    else { s += '#'; }
                 }
             }
         }
-        return str;
+        return s;
     }
 }
 
@@ -379,7 +313,7 @@ export function runTests() {
 #     #
 #######`
     );
-    console.assert(s.normIdx === (1*s.w + 1));
+    console.assert(s.normIdx === s._getIdx(1, 1));
 
     s = new Sokoban(
 `######
@@ -449,4 +383,22 @@ export function runTests() {
 ####  `
     );
     console.assert(s.movesTo(1, 2) === 'ul');
+
+    s = new Sokoban(
+`#######
+#. $ @#
+#######`
+    );
+    hH = s.hashH;
+    hL = s.hashL;
+    let boxes = BitVector.copy(s.boxBV);
+    s.move('l');
+    s.move('l');
+    s.move('l');
+    s.undo();
+    s.undo();
+    s.undo();
+    console.assert(s.hashH === hH);
+    console.assert(s.hashL === hL);
+    console.assert(boxes.eq(s.boxBV));
 }
