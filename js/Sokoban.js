@@ -278,6 +278,12 @@ export default class Sokoban {
         this.moves = this.moves.slice(0, -1);
     }
 
+    restart() {
+        while (this.moves.length) {
+            this.undo();
+        }
+    }
+
     toString() {
         let s = '';
         for (let idx = 0, j = 0; j < this.K.h; ++j) { // idx init!

@@ -3,28 +3,176 @@
 	padding: 0;
 }
 html, body {
-	width: 100%;
 	height: 100%;
-	background: #4F5F61;
 }
-#puzzle {
+body {
+	font: 100%/1 "Lucida Grande", "Lucida Sans Unicode", "Trebuchet MS", Helvetica, sans-serif;
+	background: #5C5C62;
+	color:#fff;
 	position: fixed;
-	top: 1em;
-	right: 1em;
-	bottom: 1em;
-	left: 25%;
-	overflow: scroll;
-}
-.sidebar {
-	position: fixed;
-	background: white;
-	left: 0;
-	right: 75%;
 	top: 0;
+	right: 0;
 	bottom: 0;
-	overflow: scroll;
+	left: 0;
+}
+h2, h3 {
+	font-size: 1rem;
+	line-height: 1;
+	margin-bottom: 0.2rem;
+}
+button {
+	font: bold 0.7rem/1 "Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", Helvetica, sans-serif;
+	text-transform: uppercase;
+	letter-spacing: 0.09em;
+	background: #AC53FD;
+	color: #fff;
+	border:none;
+	padding: 0.6rem;
+}
+button:hover {
+	cursor: pointer;
+	background: #18B8FF;
+}
+input, label {
+	vertical-align: baseline;
+}
+
+/* Layout */
+
+#puzzle {
+	position: absolute;
+	top: 0;
+	left: 16rem;
+	right: 0;
+	bottom: 5.2rem;
+	z-index: 0;
+}
+
+#list {
+	width: 16rem;
+	position: absolute;
+	top: 0;
+	bottom:0;
+	left: 0;
+	z-index: 2;
+	font-family: Helvetica, Arial, sans-serif;
+	font-size: 0.85rem;
+	background: #F2F1F7;
+	color: #000;
+	overflow-y: auto;
+}
+#meta {
+	height: 5.2rem; /* 2*0.8rem + 1.2rem + 2*1.2rem*/
+	position: absolute;
+	left: 16rem;
+	right: 0;
+	bottom: 0;
+	z-index: 1;
+	line-height: 1.2rem;
+	background: rgba(3, 0, 5, 0.5);
+	color: #fff;
+}
+body.hideList #list { display: none; }
+body.hideList #puzzle { left: 0; }
+body.hideList #meta { left: 0; }
+
+/* List */
+div.title {
+	background: #DFDAE8;
+}
+ul.collections span.pack {
+	display: block;
+	padding: 0.35em 0.4rem;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+ul.collections span.pack span.title::before { content: "▾ "; }
+ul.collections li.hide span.title::before { content: "▸ "; }
+ul.puzzles li {
+	padding: 0.35em 0.4rem;
+	padding-left: 2rem;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+span.moves {
+	font-size: 0.7rem;
+	padding-left: 0.2rem;
+	display: inline-block;
+	vertical-align: middle;
+	text-align: right;
+}
+span.author {
+	padding-left: 0.4rem;
+}
+ul.collections span.pack:hover { cursor: pointer; }
+ul.collections span.pack:hover span.title::before { color: #2462F7; }
+ul.puzzles li:hover {
+	cursor: pointer;
+	background: #18B8FF;
+	color: #fff;
+}
+div.title ul.collections span.pack span.title::before { content: normal; }
+div.title ul.collections span.pack:hover { cursor: inherit; }
+div.title ul.collections span.pack:hover span.title::before { color: inherit; }
+div.title ul.puzzles li:hover {
+	cursor: inherit;
+	background: inherit;
+	color: inherit;
 }
 li.hide ul {
 	display: none;
-
 }
+
+/* Meta */
+#btnToggleList {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 100;
+	padding: 0 0.6rem;
+}
+#btnToggleList span::before{ content: '◂'; }
+body.hideList #btnToggleList span::before { content: '▸'; }
+#btnToggleList span {
+	writing-mode: vertical-lr;
+	text-align: center;
+}
+
+#flex {
+	padding: 0.8rem 0 0 0.8rem;
+	position: absolute;
+	left: 1.9rem;
+	top: 0;
+	bottom: 0;
+	right: 0;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	overflow-y: auto;
+}
+#flex > * {
+	padding: 0 0.8rem 0.8rem 0;
+}
+#flex label {
+	display: block;
+}
+#flex button {
+	vertical-align: middle;
+}
+#controls {
+	display: flex;
+	flex-wrap: wrap;
+}
+#controls .movement {
+	margin-right: 1.6rem;
+	line-height: 2.4rem;
+}
+#controls img {
+	vertical-align: bottom;
+	margin: 0 0.2rem;
+}
+#controls .movement img { height: 2em; }
+#controls .other img { height: 1em; }
