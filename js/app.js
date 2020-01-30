@@ -1,4 +1,5 @@
 import builtInPuzzles from './builtInPuzzles.js';
+import PuzzleManager from './PuzzleManager.js';
 import Sokoban from './Sokoban.js';
 import SokobanView from './SokobanView.js';
 
@@ -10,9 +11,38 @@ const elCollections = document.getElementById('collections');
 
 const elBtnToggleList = document.getElementById('btnToggleList');
 
+const elPTitle = document.getElementById('ptitle');
+const elPAuth = document.getElementById('pauth');
+
 // Game
 let puzzle;
 let view;
+
+let pm = new PuzzleManager(elCollections);
+pm.onSelected = function (collection, puzzleIdx) {
+    let p = collection.p[puzzleIdx];
+    puzzle = new Sokoban(p.s);
+    view = new SokobanView(elPuzzle, puzzle);
+
+    if (p.auth) {
+        elPAuth.innerHTML = p.a;
+    }
+    else {
+        elPAuth.innerHTML = collection.a;
+    }
+
+    elPTitle.innerHTML = collection.t;
+    if (p.t) {
+        elPTitle.innerHTML += ' - ' + p.t;
+    }
+    else {
+        elPTitle.innerHTML += ' #' + puzzleIdx;
+    }
+};
+elBtnToggleList.addEventListener('click', function () {
+    elBody.classList.toggle('hideList');
+    view.resize();
+});
 
 window.addEventListener('keydown', function (evt) {
     if (!puzzle) {
@@ -42,11 +72,13 @@ window.addEventListener('keydown', function (evt) {
     else if (k === 'r') { // restart
         puzzle.restart();
     }
-    console.log(puzzle.toString());
-    if (!view) {
-        return;
+    if (view) {
+        view.update();
     }
-    view.update();
+    if (puzzle.completed()) {
+        pm.addScore(puzzle.numPushes(), puzzle.numMoves());
+        pm.next();
+    }
 });
 
 function play(puzzleObj) {
@@ -54,62 +86,5 @@ function play(puzzleObj) {
     view = new SokobanView(elPuzzle, puzzle);
 }
 
-// List of puzzles
-let userPuzzles = [];
-// TODO: add localStorage puzzles to userCollections array
-let userStats = {};
 
-function updatePuzzleList() {
-    let collections = [...builtInPuzzles, ...userPuzzles];
-    collections.sort(function(a, b) {
-        return a.t < b.t; // sort by title
-    });
 
-    elCollections.innerHTML = '';
-
-    for (let i = 0, len = collections.length; i < len; ++i) {
-        let c = collections[i];
-        let cItem = document.createElement('li');
-        cItem.classList.add('hide'); // hide by default
-
-        let pack = document.createElement('span');
-        pack.classList.add('pack');
-        let title = document.createElement('span');
-        title.classList.add('title');
-        let author = document.createElement('span');
-        author.classList.add('author');
-        title.append(c.t);
-        author.append(c.a);
-        pack.append(title);
-        pack.append(author);
-        cItem.append(pack);
-
-        let pList = document.createElement('ul');
-        pList.classList.add('puzzles');
-        for (let j = 0; j < c.p.length; ++j) {
-            let p = c.p[j];
-            let pItem = document.createElement('li');
-            pItem.SokobanIdx = j;
-            pItem.append(p.t);
-            pList.append(pItem);
-        }
-        cItem.append(pList);
-        cItem.addEventListener('click', function(evt) {
-            let el = evt.target;
-            if (el.SokobanIdx >= 0) {
-                play(c.p[el.SokobanIdx]);
-            }
-            else {
-                cItem.classList.toggle('hide');
-            }
-        });
-
-        elCollections.append(cItem);
-    }
-}
-updatePuzzleList();
-
-elBtnToggleList.addEventListener('click', function () {
-    elBody.classList.toggle('hideList');
-    view.resize();
-});

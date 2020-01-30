@@ -308,6 +308,21 @@ export default class Sokoban {
         }
         return s;
     }
+
+    numMoves() {
+        return this.moves ? this.moves.length : 0;
+    }
+
+    numPushes() {
+        if (this.moves) {
+            let pushes = this.moves.replace(/[a-z]/g, '');
+            console.log(pushes);
+            return pushes.length;
+        }
+        else {
+            return 0;
+        }
+    }
 }
 
 export function runTests() {
