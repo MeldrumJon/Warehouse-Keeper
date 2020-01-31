@@ -229,7 +229,7 @@ export default class Sokoban {
 
     move(dir) {
         if (this.completed()) {
-            return false; // Don't allow moves once puzzle complete
+            return null; // Don't allow moves once puzzle complete
         }
         if (!this.moves) {
             this.moves = ''; // Time to start keeping track of moves
@@ -242,20 +242,28 @@ export default class Sokoban {
         const ny = this.playerY+dy;
         const nidx = this._getIdx(nx, ny);
         if (!this.K.floor[nidx]) {
-            return false;
+            return null;
         }
         else if (this.boxBV.test(nidx)) {
             if (this.push(nx, ny, dx, dy)) {
-                this.moves += S.DMS[didx].toUpperCase();
-                return true;
+                let d = S.DMS[didx].toUpperCase();
+                this.moves += d;
+                return {
+                    direction: d,
+                    boxStartX: nx,
+                    boxStartY: ny,
+                    boxEndX: nx+dx,
+                    boxEndY: ny+dy
+                };
             }
-            return false;
+            return null;
         }
         else {
             this.playerX = nx;
             this.playerY = ny;
-            this.moves += S.DMS[didx];
-            return true;
+            let d = S.DMS[didx];
+            this.moves += d;
+            return { direction: d };
         }
     }
 

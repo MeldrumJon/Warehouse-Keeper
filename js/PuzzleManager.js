@@ -8,7 +8,7 @@ export default class PuzzleManager {
     }
 
     _updateDOM() {
-        this.ulCollections.innerHTML = '';
+        this.elementUL.innerHTML = '';
         for (let i = 0, len = this.collections.length; i < len; ++i) {
             const c = this.collections[i];
 
@@ -29,11 +29,10 @@ export default class PuzzleManager {
 
                 const pStats = document.createElement('span');
                 pStats.classList.add('stats');
-                if (this.userScores[c.t]) {
-                    let score = this.userScores[c.t][j];
-                    if (score) {
-                        pStats.append(score.p + ' : ' + score.m);
-                    }
+                let score = this.getScore(c, j);
+                if (score) {
+                    pItem.classList.add('completed');
+                    pStats.append(score.p + ' : ' + score.m);
                 }
                 pItem.append(pStats);
 
@@ -46,17 +45,23 @@ export default class PuzzleManager {
                 if (el.SokobanIdx >= 0) {
                     this.select(c, el.SokobanIdx);
                 }
+                else if (el.parentNode.SokobanIdx >= 0) {
+                    this.select(c, el.parentNode.SokobanIdx);
+                }
                 else {
                     cItem.classList.toggle('hide');
                 }
             }.bind(this);
             cItem.addEventListener('click', cClick);
-            this.ulCollections.append(cItem);
+            this.elementUL.append(cItem);
         }
         return;
     }
 
-    constructor(ulCollections) {
+    constructor(elementUL) {
+        this.elementUL = elementUL;
+        this.DOMItems = {}; // keys are collection titles, which contain array of <li> elements corresponding to each puzzle idx
+
         let additional = localStorage.getItem('userPuzzles');
         if (!additional) {
             this.userPuzzles = [];
@@ -70,14 +75,12 @@ export default class PuzzleManager {
 
         let scores = localStorage.getItem('userScores');
         if (!scores) {
-            this.userScores = {};
+            this.userScores = {}; // keys are collection titles, which contain arrays of data corresponding to each puzzle idx
         }
         else {
             this.userScores = JSON.parse(scores);
         }
 
-        this.ulCollections = ulCollections;
-        this.DOMItems = {};
         this._updateDOM();
     }
 
@@ -89,46 +92,70 @@ export default class PuzzleManager {
         }
         this.userPuzzles.push(collection);
         this.collections.push(collection);
-        this._sort();
         localStorage.setItem('userPuzzles', JSON.stringify(this.userPuzzles));
+        this._sort();
         this._updateDOM();
         return true;
     }
 
-    addScore(pushes, moves) {
-        if (!this.selectedCol || !(this.selectedIdx >= 0)) {
-            return false;
+    scoreSelected(pushes, moves) {
+        if (!(this.selCollection && this.selIdx >= 0)) {
+            return; // nothing selected
         }
-        let obj = this.userScores[this.selectedCol];
-        if (!obj) { this.userScores[this.selectedCol] = []; }
-        this.userScores[this.selectedCol][this.selectedIdx] = { p: pushes, m: moves };
+
+        if (!this.userScores[this.selCollection.t]) {
+            this.userScores[this.selCollection.t] = [];
+        }
+        let scoreArray = this.userScores[this.selCollection.t];
+
+        let score;
+        if (!scoreArray[this.selIdx]) {
+            scoreArray[this.selIdx] = { p: pushes, m: moves };
+            score = scoreArray[this.selIdx];
+        }
+        else {
+            score = scoreArray[this.selIdx];
+            if (pushes < score.p) { score.p = pushes; }
+            if (moves < score.m) { score.m = moves; }
+        }
         localStorage.setItem('userScores', JSON.stringify(this.userScores));
 
-        let elItem = this.DOMItems[this.selectedCol][this.selectedIdx];
-        let elStats = elItem.children[0];
-        elStats.innerHTML = pushes + ' : ' + moves;
+        let elLI = this.DOMItems[this.selCollection.t][this.selIdx];
+        elLI.classList.add('completed');
+        let elStats = elLI.children[0]; // span stats
+        elStats.innerHTML = score.p + ' : ' + score.m;
+    }
+
+    getScore(collection, idx) {
+        let stats = this.userScores[collection.t];
+        if (stats) {
+            return stats[idx];
+        }
+        else {
+            return undefined;
+        }
     }
 
     select(collection, puzzleIdx) {
-        if (this.selectedCol && this.selectedIdx >= 0) {
-            let elOldItem = this.DOMItems[this.selectedCol][this.selectedIdx];
-            elOldItem.classList.remove('selected');
+        if (this.selCollection && this.selIdx >= 0) {
+            let elLI = this.DOMItems[this.selCollection.t][this.selIdx];
+            elLI.classList.remove('selected');
         }
+        this.selCollection = collection;
+        this.selIdx = puzzleIdx;
+        let elLI = this.DOMItems[this.selCollection.t][this.selIdx];
+        elLI.classList.add('selected');
 
-        let elItem = this.DOMItems[collection.t][puzzleIdx];
-        elItem.classList.add('selected');
-
-        this.selectedCol = collection.t;
-        this.selectedIdx = puzzleIdx;
-
-        if (this.onSelected) {
-            this.onSelected(collection, puzzleIdx);
+        if (this.onselect) {
+            this.onselect(this.selCollection, this.selIdx);
         }
     }
 
     next() {
-        if (!this.DOMItems[this.selectedCol][this.selectedIdx + 1]) {
-            return;
+        if (!(this.selCollection && this.selIdx >= 0)) {
+            return; // nothing selected
         }
+        let idx = (this.selIdx + 1) % this.selCollection.p.length;
+        this.select(this.selCollection, idx);
     }
 }

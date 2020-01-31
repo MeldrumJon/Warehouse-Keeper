@@ -19,7 +19,7 @@ let puzzle;
 let view;
 
 let pm = new PuzzleManager(elCollections);
-pm.onSelected = function (collection, puzzleIdx) {
+pm.onselect = function (collection, puzzleIdx) {
     let p = collection.p[puzzleIdx];
     puzzle = new Sokoban(p.s);
     view = new SokobanView(elPuzzle, puzzle);
@@ -50,34 +50,38 @@ window.addEventListener('keydown', function (evt) {
     }
     let kc = evt.keyCode;
     let k = evt.key.toLowerCase();
+    let mObj;
     if (kc === 37 || k === 's' || k === 'h') { // left
-        puzzle.move('l');
+        mObj = puzzle.move('l');
+        view.update(mObj);
         evt.preventDefault();
     }
     else if (kc === 38 || k === 'e' || k === 'k') { // up
-        puzzle.move('u');
+        mObj = puzzle.move('u');
+        view.update(mObj);
         evt.preventDefault();
     }
     else if (kc === 39 || k === 'f' || k === 'l') { // right
-        puzzle.move('r');
+        mObj = puzzle.move('r');
+        view.update(mObj);
         evt.preventDefault();
     }
     else if (kc === 40 || k === 'd' || k === 'j') { // down
-        puzzle.move('d');
+        mObj = puzzle.move('d');
+        view.update(mObj);
         evt.preventDefault();
     }
     else if (k === 'u') { // undo
         puzzle.undo();
+        view.fullUpdate();
     }
     else if (k === 'r') { // restart
         puzzle.restart();
-    }
-    if (view) {
-        view.update();
+        view.fullUpdate();
     }
     if (puzzle.completed()) {
-        pm.addScore(puzzle.numPushes(), puzzle.numMoves());
-        pm.next();
+        pm.scoreSelected(puzzle.numPushes(), puzzle.numMoves());
+        setTimeout(function () { pm.next() }, 550);
     }
 });
 

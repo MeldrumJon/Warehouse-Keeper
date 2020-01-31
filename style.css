@@ -7,7 +7,7 @@ html, body {
 }
 body {
 	font: 100%/1 "Lucida Grande", "Lucida Sans Unicode", "Trebuchet MS", Helvetica, sans-serif;
-	background: #5C5C62;
+	background: #4F5F61;
 	color:#fff;
 	position: fixed;
 	top: 0;
@@ -24,14 +24,14 @@ button {
 	font: bold 0.7rem/1 "Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", Helvetica, sans-serif;
 	text-transform: uppercase;
 	letter-spacing: 0.09em;
-	background: #AC53FD;
+	background: #00a3eb;
 	color: #fff;
 	border:none;
 	padding: 0.6rem;
 }
 button:hover {
 	cursor: pointer;
-	background: #18B8FF;
+	background: #AC53FD;
 }
 input, label {
 	vertical-align: baseline;
@@ -57,8 +57,7 @@ input, label {
 	z-index: 2;
 	font-family: Helvetica, Arial, sans-serif;
 	font-size: 0.85rem;
-	background: #F2F1F7;
-	color: #000;
+	background: rgba(3, 0, 5, 0.5);
 	overflow-y: auto;
 }
 #meta {
@@ -70,7 +69,6 @@ input, label {
 	z-index: 1;
 	line-height: 1.2rem;
 	background: rgba(3, 0, 5, 0.5);
-	color: #fff;
 }
 body.hideList #list { display: none; }
 body.hideList #puzzle { left: 0; }
@@ -78,7 +76,7 @@ body.hideList #meta { left: 0; }
 
 /* List */
 div.title {
-	background: #DFDAE8;
+	border-bottom: 1px solid #ccc;
 }
 ul.collections span.pack {
 	display: block;
@@ -107,12 +105,18 @@ span.author {
 	padding-left: 0.4rem;
 }
 ul.collections span.pack:hover { cursor: pointer; }
-ul.collections span.pack:hover span.title::before { color: #2462F7; }
+ul.collections span.pack:hover span.title::before { color: #00a3eb; }
 ul.puzzles li:hover {
 	cursor: pointer;
-	background: #18B8FF;
-	color: #fff;
+	background: #00a3eb;
 }
+ul.puzzles li.selected {
+	background: #Ac53FD;
+}
+ul.puzzles li.completed {
+	color: #aaa;
+}
+ul.puzzles li.completed .stats { color: #fff; }
 div.title ul.collections span.pack span.title::before { content: normal; }
 div.title ul.collections span.pack:hover { cursor: inherit; }
 div.title ul.collections span.pack:hover span.title::before { color: inherit; }
