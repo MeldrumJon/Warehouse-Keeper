@@ -29,7 +29,7 @@ export default class Sokoban {
         this.playerY = -1;
         this.boxBV = new BitVector(this.K.totalSqs);
         this.K.goalBV = new BitVector(this.K.totalSqs);
-        this.K.floor = new Uint8Array(this.K.totalSqs);
+        this.K.floor = new Array(this.K.totalSqs);
         for (let idx = 0, j = 0; j < this.K.h; ++j) { // idx init!
             for (let i = 0; i < this.K.w; ++i, ++idx) { // idx inc!
                 let ch = s[j].charAt(i);
@@ -43,9 +43,16 @@ export default class Sokoban {
                 if (ch === '+' || ch === '*' || ch === '.') {
                     this.K.goalBV.set(idx);
                 }
-                this.K.floor[idx] = (ch === '') ? S.MWALL
+                this.K.floor[idx] = (ch === '') ? null
                               : (ch === '#') ? S.MWALL
                               : S.MFLOOR;
+            }
+        }
+
+        let allReachable = this.getAllReachable();
+        for (let idx = 0; idx < this.K.totalSqs; ++idx) {
+            if (!allReachable.test(idx) && this.K.floor[idx]) {
+                this.K.floor[idx] = null;
             }
         }
 
@@ -330,6 +337,39 @@ export default class Sokoban {
         else {
             return 0;
         }
+    }
+
+    getAllReachable() {
+        // Hide unreachable squares
+        const reachable = new BitVector(this.K.totalSqs);
+        let xs = [this.playerX];
+        let ys = [this.playerY];
+        while (xs.length) {
+            let nxs = [];
+            let nys = [];
+            for (let k = 0, len = xs.length; k < len; ++k) {
+                let x = xs[k];
+                let y = ys[k];
+                let idx = this.K.w*y + x;
+                // Coordinate has already been visited
+                if (reachable.test(idx)) {
+                    continue;
+                }
+                // Coordinate is obviously unreachable
+                if (!this.K.floor[idx]) {
+                    continue;
+                }
+                // Coordinate is reachable
+                reachable.set(idx);
+                for (let d = 0; d < 4; ++d) {
+                    nxs.push(x+S.DXS[d]);
+                    nys.push(y+S.DYS[d]);
+                }
+            }
+            xs = nxs;
+            ys = nys;
+        }
+        return reachable;
     }
 }
 

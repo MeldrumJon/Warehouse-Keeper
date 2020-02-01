@@ -5,14 +5,15 @@ const BG_FLOOR = 'url("res/floor.svg")';
 const BG_WALL = 'url("res/wall.svg")';
 
 const BG_BOX = 'url("res/box.svg")';
-const BG_BOX_GS = 'url("res/boxgs.svg")';
+const BG_POS = 'left 0% top 0%';
+const BG_POS_GS = 'left 100% top 0%';
 
 const BG_PLAYER = 'url("res/player.svg")';
 
 const BG_NONE = 'transparent';
 
 const PANIM = ['left 0% ', 'left 50% ', 'left 100% '];
-const PDIR = ['top 0%', 'top '+100/3+'%', 'top '+200/3+'%', 'top 100%']; // udlr
+const PDIR = ['top 0%', 'top 25%', 'top 50%', 'top 75%']; // udlr
 
 export default class SokobanView {
     constructor(element, sokoban) {
@@ -34,22 +35,47 @@ export default class SokobanView {
             this.map[j] = new Array(sokoban.K.w);
             this.boxes[j] = new Array(sokoban.K.w);
             for (let i = 0; i < sokoban.K.w; ++i, ++idx) { // idx inc!
-                let sq = document.createElement('span');
-                sq.style.position = 'absolute';
-                sq.style.background = 
-                    sokoban.K.goalBV.test(idx) ? BG_GS
-                    : sokoban.K.floor[idx] ? BG_FLOOR
-                    : sokoban.K.floor === null ? BG_NONE
-                    : BG_WALL;
-                elMap.append(sq);
-                this.map[j][i] = sq;
-
+                let floor = sokoban.K.floor[idx];
+                if (floor !== null) {
+                    let sq = document.createElement('span');
+                    sq.style.position = 'absolute';
+                    if (floor) {
+                        sq.style.backgroundImage = sokoban.K.goalBV.test(idx) ? BG_GS : BG_FLOOR;
+                    }
+                    else {
+                        sq.style.backgroundImage = BG_WALL;
+                        if (!sokoban._floor(i-1, j)
+                            && !sokoban._floor(i-1, j-1)
+                            && !sokoban._floor(i, j-1)) { // clear TL corner
+                            sq.style.borderTopLeftRadius = '12.3%';
+                        }
+                        if (!sokoban._floor(i+1, j)
+                            && !sokoban._floor(i+1, j-1)
+                            && !sokoban._floor(i, j-1)) { // clear TR corner
+                            sq.style.borderTopRightRadius = '12.3%';
+                        }
+                        if (!sokoban._floor(i-1, j)
+                            && !sokoban._floor(i-1, j+1)
+                            && !sokoban._floor(i, j+1)) { // clear BL corner
+                            sq.style.borderBottomLeftRadius = '12.3%';
+                        }
+                        if (!sokoban._floor(i+1, j)
+                            && !sokoban._floor(i+1, j+1)
+                            && !sokoban._floor(i, j+1)) { // clear BR corner
+                            sq.style.borderBottomRightRadius = '12.3%';
+                        }
+                    }
+                    elMap.append(sq);
+                    this.map[j][i] = sq;
+                }
                 if (this.sokoban.boxBV.test(idx)) {
                     let sq = document.createElement('span');
                     sq.style.position = 'absolute';
-                    sq.style.background =
-                        this.sokoban.K.goalBV.test(idx) ? BG_BOX_GS
-                        : BG_BOX;
+                    sq.style.backgroundImage = BG_BOX;
+                    sq.style.backgroundSize = '200% 100%';
+                    sq.style.backgroundPosition = 
+                            this.sokoban.K.goalBV.test(idx) ? BG_POS_GS
+                            : BG_POS;
                     this.elBoxes.append(sq);
                     this.boxes[j][i] = sq;
                 }
@@ -60,24 +86,28 @@ export default class SokobanView {
 
         this.player = document.createElement('span');
         this.player.style.position = 'absolute';
-        this.player.style.background = BG_PLAYER;
-        this.player.style.backgroundSize = '300% 400%';
+        this.player.style.backgroundImage = BG_PLAYER;
+        this.player.style.backgroundSize = '300% 500%';
         this.player.style.backgroundPosition = PANIM[0] + PDIR[1];
         this.container.append(this.player);
 
         this.resize();
 
-        this.animPlayer = [];
+        this.animSteps = 12;
+        this.animPlayer = []; // animation queue
         this.animBox = [];
+        this.busy = false;
     }
 
     resize() {
+        this.cancelAnimation = true;
+
         let elW = this.element.clientWidth;
         let elH = this.element.clientHeight;
         let w = elW / this.sokoban.K.w;
         let h = elH / this.sokoban.K.h;
         let s = (w < h) ? w : h;
-        s = (s < 16) ? 16 : (s > 64) ? 64 : ~~(s);
+        s = (s < 1) ? 1 : (s > 64) ? 64 : ~~(s);
         let sstr = s + 'px';
         for (let j = 0; j < this.sokoban.K.h; ++j) {
             for (let i = 0; i < this.sokoban.K.w; ++i) {
@@ -125,9 +155,11 @@ export default class SokobanView {
                 if (this.sokoban.boxBV.test(idx)) {
                     let box = document.createElement('span');
                     box.style.position = 'absolute';
-                    box.style.background =
-                        this.sokoban.K.goalBV.test(idx) ? BG_BOX_GS
-                        : BG_BOX;
+                    box.style.backgroundImage = BG_BOX;
+                    box.style.backgroundSize = '200% 100%';
+                    box.style.backgroundPosition = 
+                            this.sokoban.K.goalBV.test(idx) ? BG_POS_GS
+                            : BG_POS;
                     box.style.width = sstr;
                     box.style.height = sstr;
                     box.style.top = j*this.scale + 'px';
@@ -142,83 +174,22 @@ export default class SokobanView {
         }
     }
 
-    _animate(playerObj, boxObj) {
-        this.animPlayer.push(playerObj);
-        this.animBox.push(boxObj);
-        if (this.busy) { return; }
-
-        this.busy = true;
-        let animateMove = function() {
-            let pObj = this.animPlayer.shift();
-            let bObj = this.animBox.shift();
-
-            if (!pObj && !bObj) {
-                this.busy = false;
-                return;
-            }
-
-            let psteps = 16;
-            let xpstep = (pObj.ex - parseInt(this.player.style.left, 10))/(psteps);
-            let ypstep = (pObj.ey - parseInt(this.player.style.top, 10))/(psteps);
-            let animPlayer = function() {
-                --psteps;
-                if (!psteps) {
-                    this.player.style.top = pObj.ey + 'px';
-                    this.player.style.left = pObj.ex + 'px';
-                    this.player.style.backgroundPosition = PANIM[0] + PDIR[pObj.didx];
-                    if (!bObj) animateMove();
-                    return;
-                }
-                let x = parseInt(this.player.style.left, 10) + xpstep;
-                let y = parseInt(this.player.style.top, 10) + ypstep;
-                this.player.style.backgroundPosition = PANIM[((psteps % 16) < 8) ? 1 : 2] + PDIR[pObj.didx];
-                this.player.style.left = x + 'px'
-                this.player.style.top = y + 'px';
-                requestAnimationFrame(animPlayer);
-            }.bind(this);
-            requestAnimationFrame(animPlayer);
-
-            if (!bObj) { return; }
-
-            let bsteps = 16;
-            let xbstep = (bObj.ex - parseInt(bObj.box.style.left, 10))/bsteps;
-            let ybstep = (bObj.ey - parseInt(bObj.box.style.top, 10))/bsteps;
-            let animBox = function() {
-                --bsteps;
-                if (!bsteps) {
-                    bObj.box.style.background = bObj.onGoal ? BG_BOX_GS : BG_BOX;
-                    bObj.box.style.left = bObj.ex + 'px';
-                    bObj.box.style.top = bObj.ey + 'px';
-                    animateMove();
-                    return;
-                }
-                let x = parseInt(bObj.box.style.left, 10) + xbstep;
-                let y = parseInt(bObj.box.style.top, 10) + ybstep;
-                bObj.box.style.left = x + 'px'
-                bObj.box.style.top = y + 'px';
-                requestAnimationFrame(animBox);
-            }.bind(this);
-            requestAnimationFrame(animBox);
-        }.bind(this);
-        animateMove();
-    }
-
     update(movementObj) {
-        if (!movementObj) { return; } // no box to move
+        if (!movementObj) { return; } // no moving information
 
         // Move player
         let pObj = {
-            ex: this.sokoban.playerX*this.scale,
-            ey: this.sokoban.playerY*this.scale,
+            ex: this.sokoban.playerX,
+            ey: this.sokoban.playerY,
             didx: S.DMS.indexOf(movementObj.direction.toLowerCase())
         };
         
-
-        // Move box
         if (!movementObj.boxStartX) { 
             this._animate(pObj, null);
             return;
         }
+
+        // Move box
         let sx = movementObj.boxStartX;
         let sy = movementObj.boxStartY;
         let ex = movementObj.boxEndX;
@@ -229,11 +200,92 @@ export default class SokobanView {
         this.boxes[ey][ex] = box;
 
         let bObj = {
-            ex: ex*this.scale,
-            ey: ey*this.scale,
             box: box,
-            onGoal: this.sokoban.K.goalBV.test(this.sokoban._getIdx(ex, ey))
+            gs: this.sokoban.K.goalBV.test(this.sokoban._getIdx(ex, ey)),
+            ex: ex,
+            ey: ey
         };
         this._animate(pObj, bObj);
+    }
+
+    _animate(playerObj, boxObj) {
+        this.animPlayer.push(playerObj);
+        this.animBox.push(boxObj);
+
+        const animPlayer = function(didx, ex, ey, callback) {
+            let steps = this.animSteps;
+            let anim = function() {
+                let curx = parseFloat(this.player.style.left, 10);
+                let cury = parseFloat(this.player.style.top, 10);
+                let endx = ex*this.scale;
+                let endy = ey*this.scale;
+                let dx = (ex*this.scale - curx)/steps;
+                let dy = (ey*this.scale - cury)/steps;
+
+                --steps;
+                if (!steps) {
+                    this.player.style.left = endx + 'px';
+                    this.player.style.top = endy + 'px';
+                    this.player.style.backgroundPosition = PANIM[0] + PDIR[didx];
+                    if (callback) { callback(); }
+                    return;
+                }
+                else {
+                    this.player.style.left = curx+dx + 'px'
+                    this.player.style.top = cury+dy + 'px';
+                    this.player.style.backgroundPosition = 
+                            PANIM[((steps % this.animSteps) < (this.animSteps/2)) ? 1 : 2] + PDIR[didx];
+                    requestAnimationFrame(anim)
+                }
+            }.bind(this);
+            requestAnimationFrame(anim)
+        }.bind(this);
+
+        const animBox = function(box, gs, ex, ey, callback) {
+            let steps = this.animSteps;
+            let anim = function() {
+                let curx = parseFloat(box.style.left, 10);
+                let cury = parseFloat(box.style.top, 10);
+                let endx = ex*this.scale;
+                let endy = ey*this.scale;
+                let dx = (ex*this.scale - curx)/steps;
+                let dy = (ey*this.scale - cury)/steps;
+
+                --steps;
+                if (!steps) {
+                    box.style.left = endx + 'px';
+                    box.style.top = endy + 'px';
+                    box.style.backgroundPosition = gs ? BG_POS_GS : BG_POS;
+                    if (callback) { callback(); }
+                    return;
+                }
+                else {
+                    box.style.left = curx+dx + 'px'
+                    box.style.top = cury+dy + 'px';
+                    requestAnimationFrame(anim)
+                }
+            }.bind(this);
+            requestAnimationFrame(anim)
+        }.bind(this);
+
+        if (this.busy) { return; }
+
+        let animate = function () {
+            let pObj = this.animPlayer.shift();
+            let bObj = this.animBox.shift();
+
+            if (!pObj && !bObj) {
+                this.busy = false;
+                return;
+            }
+
+            if (bObj) {
+                animBox(bObj.box, bObj.gs, bObj.ex, bObj.ey);
+            }
+            animPlayer(pObj.didx, pObj.ex, pObj.ey, animate);
+        }.bind(this);
+
+        this.busy = true;
+        animate();
     }
 }

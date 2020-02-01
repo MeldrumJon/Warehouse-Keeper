@@ -44,6 +44,12 @@ elBtnToggleList.addEventListener('click', function () {
     view.resize();
 });
 
+window.addEventListener('resize', function () {
+    if (view) {
+        view.resize();
+    }
+});
+
 window.addEventListener('keydown', function (evt) {
     if (!puzzle) {
         return;
@@ -81,7 +87,6 @@ window.addEventListener('keydown', function (evt) {
     }
     if (puzzle.completed()) {
         pm.scoreSelected(puzzle.numPushes(), puzzle.numMoves());
-        setTimeout(function () { pm.next() }, 550);
     }
 });
 
@@ -89,6 +94,4 @@ function play(puzzleObj) {
     puzzle = new Sokoban(puzzleObj.s);
     view = new SokobanView(elPuzzle, puzzle);
 }
-
-
 
