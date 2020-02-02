@@ -3,7 +3,7 @@
 
 <head>
 	<meta name="viewport" content="width=device-width, initial-scale=1"> 
-	<title>Warehouse Maze (Sokoban)</title>
+	<title>Warehouse Keeper (Sokoban)</title>
 	<link href="style.css" rel="stylesheet">
 	<script type="module" src="js/test.js"></script>
 	<script type="module" src="js/app.js"></script>
@@ -14,33 +14,33 @@
 		<button id="btnToggleList"><span>Puzzles</span></button>
 
 		<div id="flex">
-			<div>
-				<h2 id="ptitle">Puzzle title</h2> 
-				by <span id="pauth">Author</span>
+			<div id="puzzleinfo">
+				<h2 id="ptitle"></h2> 
+				<span id="pauth"></span>
 			</div>
 			
 			<div>
-				<h3>Controls</h3>
-				<div id="controls">
-					<div class="movement"><img alt="ESDF" src="res/keyESDF.svg">, <img alt="HJKL" src="res/keyHJKL.svg"> or <img alt="Arrow Keys" src="res/keyArrows.svg"></span></div>
-					<div class="other">Undo: <img alt="U" src="res/keyU.svg"><br/>Restart: <img alt="R" src="res/keyR.svg"></div>
-				</div>
+				<h3>Movement</h3>
+				<div class="movement"><img alt="ESDF" src="res/keyESDF.svg">, <img alt="HJKL" src="res/keyHJKL.svg"> or <img alt="Arrow Keys" src="res/keyArrows.svg"></span></div>
 			</div>
+			
+			<div class="flexbtn">
+				<button id="btnUndo" title="Press U to undo."><span class="key">U</span>ndo</button>
+				<button id="btnRestart" title="Press R to restart."><span class="key">R</span>estart</button>
+			</div>
+
 			<div>
 				<h3>Settings</h3>
 				<label for="chkAnimated">
 					<input type="checkbox" id="chkAnimated"/>
 					Animations
 				</label>
-				<label for="chkDeadlocks">
+				<!--<label for="chkDeadlocks">
 					<input type="checkbox" id="chkDeadlocks"/>
 					Show Deadlocks
-				</label>
+				</label>-->
 			</div>
 
-			<div style="align-self:center">
-				<button id="btnSolve">Solve</button>
-			</div>
 		</div>
 	</div>
 	<div id="list">
@@ -49,7 +49,7 @@
 				<li>
 					<span class="pack"><span class="title">Collection</span><span class="author">Author</span></span>
 					<ul class="puzzles">
-						<li>Puzzle<span class="moves">Best Pushes : Best Moves</span>
+						<li>Puzzle<span class="stats">Best Pushes : Best Moves</span>
 					</ul>
 				</li>
 			</ul>

@@ -15,6 +15,8 @@ const BG_NONE = 'transparent';
 const PANIM = ['left 0% ', 'left 50% ', 'left 100% '];
 const PDIR = ['top 0%', 'top 25%', 'top 50%', 'top 75%']; // udlr
 
+let animSteps = (localStorage.getItem('animate') === 'n') ? 1 : 12;
+
 export default class SokobanView {
     constructor(element, sokoban) {
         this.element = element;
@@ -93,11 +95,24 @@ export default class SokobanView {
 
         this.resize();
 
-        this.animSteps = 12;
         this.animPlayer = []; // animation queue
         this.animBox = [];
+        this.onanimfin = null;
         this.busy = false;
     }
+
+    static setAnimated(animate) {
+        if (animate) {
+            animSteps = 12;
+            localStorage.setItem('animate', 'y');
+        }
+        else {
+            animSteps = 1;
+            localStorage.setItem('animate', 'n');
+        }
+    }
+
+    static getAnimated() { return (animSteps === 12); }
 
     resize() {
         this.cancelAnimation = true;
@@ -213,7 +228,7 @@ export default class SokobanView {
         this.animBox.push(boxObj);
 
         const animPlayer = function(didx, ex, ey, callback) {
-            let steps = this.animSteps;
+            let steps = animSteps;
             let anim = function() {
                 let curx = parseFloat(this.player.style.left, 10);
                 let cury = parseFloat(this.player.style.top, 10);
@@ -234,7 +249,7 @@ export default class SokobanView {
                     this.player.style.left = curx+dx + 'px'
                     this.player.style.top = cury+dy + 'px';
                     this.player.style.backgroundPosition = 
-                            PANIM[((steps % this.animSteps) < (this.animSteps/2)) ? 1 : 2] + PDIR[didx];
+                            PANIM[((steps % animSteps) < (animSteps/2)) ? 1 : 2] + PDIR[didx];
                     requestAnimationFrame(anim)
                 }
             }.bind(this);
@@ -242,7 +257,7 @@ export default class SokobanView {
         }.bind(this);
 
         const animBox = function(box, gs, ex, ey, callback) {
-            let steps = this.animSteps;
+            let steps = animSteps;
             let anim = function() {
                 let curx = parseFloat(box.style.left, 10);
                 let cury = parseFloat(box.style.top, 10);
@@ -276,6 +291,7 @@ export default class SokobanView {
 
             if (!pObj && !bObj) {
                 this.busy = false;
+                if (this.onanimfin) { this.onanimfin(); }
                 return;
             }
 

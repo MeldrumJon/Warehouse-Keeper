@@ -57,7 +57,7 @@ input, label {
 	z-index: 2;
 	font-family: Helvetica, Arial, sans-serif;
 	font-size: 0.85rem;
-	background: rgba(3, 0, 5, 0.5);
+	background: rgba(33, 36, 43, 0.9);
 	overflow-y: auto;
 }
 #meta {
@@ -68,11 +68,24 @@ input, label {
 	bottom: 0;
 	z-index: 1;
 	line-height: 1.2rem;
-	background: rgba(3, 0, 5, 0.5);
+	background: rgba(33, 36, 43, 0.9);
 }
 body.hideList #list { display: none; }
 body.hideList #puzzle { left: 0; }
 body.hideList #meta { left: 0; }
+
+@media screen and (max-width: 32rem) {
+	#list {
+		width: auto;
+		right: 0;
+	}
+	#puzzle {
+		left: 0;
+	}
+	#meta {
+		left: 0;
+	}
+}
 
 /* List */
 div.title {
@@ -108,10 +121,10 @@ ul.collections span.pack:hover { cursor: pointer; }
 ul.collections span.pack:hover span.title::before { color: #00a3eb; }
 ul.puzzles li:hover {
 	cursor: pointer;
-	background: #00a3eb;
+	background: #Ac53FD;
 }
 ul.puzzles li.selected {
-	background: #Ac53FD;
+	background: #00a3eb;
 }
 ul.puzzles li.completed {
 	color: #aaa;
@@ -157,29 +170,33 @@ body.hideList #btnToggleList span::before { content: '▸'; }
 	right: 0;
 	display: flex;
 	flex-wrap: wrap;
-	justify-content: space-between;
+	justify-content: flex-end;
 	overflow-y: auto;
+}
+#puzzleinfo {
+	margin-right: auto;
 }
 #flex > * {
 	padding: 0 0.8rem 0.8rem 0;
 }
+#flex .flexbtn {
+	align-self: center;
+}
+#flex .flexbtn button {
+	margin: 0 0.4rem 0 0.4rem;
+	vertical-align: middle;
+}
+#flex .key {
+	text-decoration: underline;
+}
+#flex .movement {
+	line-height: 2.4rem;
+}
+#flex .movement img {
+	margin: 0 0.2rem;
+	vertical-align: bottom;
+	height: 2rem;
+}
 #flex label {
 	display: block;
 }
-#flex button {
-	vertical-align: middle;
-}
-#controls {
-	display: flex;
-	flex-wrap: wrap;
-}
-#controls .movement {
-	margin-right: 1.6rem;
-	line-height: 2.4rem;
-}
-#controls img {
-	vertical-align: bottom;
-	margin: 0 0.2rem;
-}
-#controls .movement img { height: 2em; }
-#controls .other img { height: 1em; }

@@ -10,11 +10,14 @@ const elPuzzle = document.getElementById('puzzle');
 const elCollections = document.getElementById('collections');
 
 const elBtnToggleList = document.getElementById('btnToggleList');
+const elBtnUndo = document.getElementById('btnUndo');
+const elBtnRestart = document.getElementById('btnRestart');
+const elChkAnimated = document.getElementById('chkAnimated');
 
 const elPTitle = document.getElementById('ptitle');
 const elPAuth = document.getElementById('pauth');
 
-// Game
+// Gameplay
 let puzzle;
 let view;
 
@@ -23,6 +26,12 @@ pm.onselect = function (collection, puzzleIdx) {
     let p = collection.p[puzzleIdx];
     puzzle = new Sokoban(p.s);
     view = new SokobanView(elPuzzle, puzzle);
+
+    view.onanimfin = function() {
+        if (puzzle.completed()) {
+            window.setTimeout(function () { pm.next(); }, 150);
+        }
+    }
 
     if (p.auth) {
         elPAuth.innerHTML = p.a;
@@ -38,10 +47,63 @@ pm.onselect = function (collection, puzzleIdx) {
     else {
         elPTitle.innerHTML += ' #' + puzzleIdx;
     }
+
+    let mQuery = window.matchMedia('screen and (max-width: 32rem)');
+    if (mQuery.matches) {
+        elBody.classList.add('hideList');
+    }
 };
-elBtnToggleList.addEventListener('click', function () {
-    elBody.classList.toggle('hideList');
-    view.resize();
+
+let undo = function() {
+    if (!puzzle.completed()) {
+        puzzle.undo();
+        view.fullUpdate();
+    }
+};
+
+let restart = function() {
+    if (!puzzle.completed()) {
+        puzzle.restart();
+        view.fullUpdate();
+    }
+};
+
+window.addEventListener('keydown', function (evt) {
+    if (!puzzle || !view) {
+        return;
+    }
+    let kc = evt.keyCode;
+    let k = evt.key.toLowerCase();
+    if (k === 'u') {
+        undo();
+        return;
+    }
+    if (k === 'r') {
+        restart();
+        return;
+    }
+
+    let mObj;
+    if (kc === 37 || k === 's' || k === 'h') { // left
+        mObj = puzzle.move('l');
+    }
+    else if (kc === 38 || k === 'e' || k === 'k') { // up
+        mObj = puzzle.move('u');
+    }
+    else if (kc === 39 || k === 'f' || k === 'l') { // right
+        mObj = puzzle.move('r');
+    }
+    else if (kc === 40 || k === 'd' || k === 'j') { // down
+        mObj = puzzle.move('d');
+    }
+
+    if (mObj) {
+        view.update(mObj);
+        evt.preventDefault();
+        if (puzzle.completed()) {
+            pm.scoreSelected(puzzle.numPushes(), puzzle.numMoves());
+        }
+    }
 });
 
 window.addEventListener('resize', function () {
@@ -50,48 +112,17 @@ window.addEventListener('resize', function () {
     }
 });
 
-window.addEventListener('keydown', function (evt) {
-    if (!puzzle) {
-        return;
-    }
-    let kc = evt.keyCode;
-    let k = evt.key.toLowerCase();
-    let mObj;
-    if (kc === 37 || k === 's' || k === 'h') { // left
-        mObj = puzzle.move('l');
-        view.update(mObj);
-        evt.preventDefault();
-    }
-    else if (kc === 38 || k === 'e' || k === 'k') { // up
-        mObj = puzzle.move('u');
-        view.update(mObj);
-        evt.preventDefault();
-    }
-    else if (kc === 39 || k === 'f' || k === 'l') { // right
-        mObj = puzzle.move('r');
-        view.update(mObj);
-        evt.preventDefault();
-    }
-    else if (kc === 40 || k === 'd' || k === 'j') { // down
-        mObj = puzzle.move('d');
-        view.update(mObj);
-        evt.preventDefault();
-    }
-    else if (k === 'u') { // undo
-        puzzle.undo();
-        view.fullUpdate();
-    }
-    else if (k === 'r') { // restart
-        puzzle.restart();
-        view.fullUpdate();
-    }
-    if (puzzle.completed()) {
-        pm.scoreSelected(puzzle.numPushes(), puzzle.numMoves());
-    }
-});
+// UI
+elBtnUndo.addEventListener('click', undo);
+elBtnRestart.addEventListener('click', restart);
 
-function play(puzzleObj) {
-    puzzle = new Sokoban(puzzleObj.s);
-    view = new SokobanView(elPuzzle, puzzle);
-}
+elBtnToggleList.addEventListener('click', function () {
+    elBody.classList.toggle('hideList');
+    view.resize();
+});
+elChkAnimated.addEventListener('change', function(evt) {
+    SokobanView.setAnimated(elChkAnimated.checked);
+});
+elChkAnimated.checked = SokobanView.getAnimated();
+
 
