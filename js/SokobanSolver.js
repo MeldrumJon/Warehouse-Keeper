@@ -1,7 +1,7 @@
 import * as S from './consts.js';
 import Sokoban from './Sokoban.js';
 import {TypedTranspositionTable as TranspositionTable} from './TranspositionTable.js';
-import * as bv from './bitVector.js';
+import BitVector from './BitVector.js';
 
 function _generateLiveSquares(sok) {
     const lSquares = new Uint8Array(sok.w*sok.h);
