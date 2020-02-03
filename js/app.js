@@ -2,6 +2,7 @@ import builtInPuzzles from './builtInPuzzles.js';
 import PuzzleManager from './PuzzleManager.js';
 import Sokoban from './Sokoban.js';
 import SokobanView from './SokobanView.js';
+import sokParse from './sokParse.js';
 
 // Elements
 const elBody = document.getElementById('warehouse_keeper_game');

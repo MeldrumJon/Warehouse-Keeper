@@ -331,7 +331,6 @@ export default class Sokoban {
     numPushes() {
         if (this.moves) {
             let pushes = this.moves.replace(/[a-z]/g, '');
-            console.log(pushes);
             return pushes.length;
         }
         else {
