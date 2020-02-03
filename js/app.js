@@ -86,21 +86,24 @@ window.addEventListener('keydown', function (evt) {
 
     let mObj;
     if (kc === 37 || k === 's' || k === 'h') { // left
+        evt.preventDefault();
         mObj = puzzle.move('l');
     }
     else if (kc === 38 || k === 'e' || k === 'k') { // up
+        evt.preventDefault();
         mObj = puzzle.move('u');
     }
     else if (kc === 39 || k === 'f' || k === 'l') { // right
+        evt.preventDefault();
         mObj = puzzle.move('r');
     }
     else if (kc === 40 || k === 'd' || k === 'j') { // down
+        evt.preventDefault();
         mObj = puzzle.move('d');
     }
 
     if (mObj) {
         view.update(mObj);
-        evt.preventDefault();
         if (puzzle.completed()) {
             pm.scoreSelected(puzzle.numPushes(), puzzle.numMoves());
         }
