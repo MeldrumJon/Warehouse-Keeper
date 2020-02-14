@@ -15,7 +15,9 @@ export default class PuzzleManager {
             const cItem = document.createElement('li');
             cItem.classList.add('hide'); // hide by default
             cItem.innerHTML = '<span class="pack"><span class="title">' + c.t + '</span><span class="author">' + c.a + '</span></span>';
-            this.DOMItems[c.t] = []; // List items for this collection
+            this.DOMItems[c.t] = {};
+            this.DOMItems[c.t].titleLI = cItem;
+            this.DOMItems[c.t].puzzlesLI = []; // List items for this collection
 
             const pList = document.createElement('ul');
             pList.classList.add('puzzles');
@@ -25,7 +27,7 @@ export default class PuzzleManager {
                 const pItem = document.createElement('li');
                 pItem.innerHTML = p.t;
                 pItem.SokobanIdx = j;
-                this.DOMItems[c.t][j] = pItem;
+                this.DOMItems[c.t].puzzlesLI[j] = pItem;
 
                 const pStats = document.createElement('span');
                 pStats.classList.add('stats');
@@ -120,7 +122,7 @@ export default class PuzzleManager {
         }
         localStorage.setItem('userScores', JSON.stringify(this.userScores));
 
-        let elLI = this.DOMItems[this.selCollection.t][this.selIdx];
+        let elLI = this.DOMItems[this.selCollection.t].puzzlesLI[this.selIdx];
         elLI.classList.add('completed');
         let elStats = elLI.children[0]; // span stats
         elStats.innerHTML = score.p + ' : ' + score.m;
@@ -138,17 +140,20 @@ export default class PuzzleManager {
 
     select(collection, puzzleIdx) {
         if (this.selCollection && this.selIdx >= 0) {
-            let elLI = this.DOMItems[this.selCollection.t][this.selIdx];
+            let elLI = this.DOMItems[this.selCollection.t].puzzlesLI[this.selIdx];
             elLI.classList.remove('selected');
         }
         this.selCollection = collection;
         this.selIdx = puzzleIdx;
-        let elLI = this.DOMItems[this.selCollection.t][this.selIdx];
+        let elLI = this.DOMItems[this.selCollection.t].puzzlesLI[this.selIdx];
         elLI.classList.add('selected');
 
         if (this.onselect) {
             this.onselect(this.selCollection, this.selIdx);
         }
+
+        localStorage.setItem('lastCollection', collection.t);
+        localStorage.setItem('lastIdx', puzzleIdx);
     }
 
     next() {
@@ -157,5 +162,33 @@ export default class PuzzleManager {
         }
         let idx = (this.selIdx + 1) % this.selCollection.p.length;
         this.select(this.selCollection, idx);
+    }
+
+    startLastPuzzle() {
+        let lastCollection = localStorage.getItem('lastCollection');
+        let lastIdx = localStorage.getItem('lastIdx');
+        if (lastCollection === null || lastIdx === null) {
+            lastCollection = 'Microban'
+            lastIdx = '0';
+        }
+        // get the actual collection object
+        let collection;
+        for (let i = 0; i < this.collections.length; ++i) {
+            if (this.collections[i].t === lastCollection) {
+                collection = this.collections[i];
+                break;
+            }
+        }
+        let idx = parseInt(lastIdx, 10);
+
+        // Print error if we can't find one
+        if (!collection || !(idx >= 0)) {
+            console.log('Could not find collection ' + lastCollection
+                + 'or idx ' + lastIdx + ' is out of range');
+            return;
+        }
+
+        this.DOMItems[collection.t].titleLI.classList.remove('hide');
+        this.select(collection, idx);
     }
 }

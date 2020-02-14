@@ -130,3 +130,6 @@ elChkAnimated.addEventListener('change', function(evt) {
 elChkAnimated.checked = SokobanView.getAnimated();
 
 
+
+// Begin
+pm.startLastPuzzle();
