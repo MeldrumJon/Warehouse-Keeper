@@ -57,6 +57,11 @@ export default class PuzzleManager {
             cItem.addEventListener('click', cClick);
             this.elementUL.append(cItem);
         }
+
+        if (this.selCollection && this.selIdx >= 0) {
+            let elLI = this.DOMItems[this.selCollection.t].puzzlesLI[this.selIdx];
+            elLI.classList.add('selected');
+        }
         return;
     }
 
