@@ -15,7 +15,7 @@
 
 		<div id="flex">
 			<div id="puzzleinfo">
-				<h2 id="ptitle"></h2> 
+				<h2 id="ptitle">Sokoban</h2> 
 				<span id="pauth"></span>
 			</div>
 			
@@ -47,7 +47,7 @@
 		<div class="title">
 			<ul class="collections">
 				<li>
-					<span class="pack"><span class="title">Collection</span><span class="author">Author</span></span>
+					<span class="pack"><span class="title">Collection (<a href="" onclick="return false" id="aAdd">Add Collection</a>)</span><span class="author">Author</span></span>
 					<ul class="puzzles">
 						<li>Puzzle<span class="stats">Best Pushes : Best Moves</span>
 					</ul>
@@ -59,6 +59,38 @@
 	</div>
 	</div>
 	<div id="puzzle">
+	</div>
+
+	<div id="shade">
+		<div id="collectionParse" class="modal">
+			<h3>Add Puzzle Collection</h3>
+			<p>Add a puzzle collection in <a href="http://www.sokobano.de/wiki/index.php?title=Sok_format" target="_blank">.sok</a> or plain text format.
+			Hundreds of puzzles can be downloaded <a href="http://sokobano.de/en/levels.php" title="sokobano.de" target="_blank">here</a>.</p>
+			<textarea id="taCollection" cols="80" rows="24" placeholder="Copy and paste the contents of the .sok or plain text file here."></textarea>
+			<div class="btns">
+				<button id="btnCancelParse">Cancel</button>
+				<button id="btnParse">Parse</button>
+			</div>
+		</div>
+		<div id="collectionVerify" class="modal">
+			<h3>Confirm</h3>
+			<p>Collection contains <span id="spanNumPuzzles">0</span> puzzles<p>
+			<p>Add or verify the title and author of the collection:</p>
+			<label for="itTitle">Title:</label> <input type="text" id="itTitle" placeholder="Must not be left blank."/>
+			<br/>
+			<label for="itAuthor">Author:</label> <input type="text" id="itAuthor"/>
+			<div class="btns">
+				<button id="btnCancelVerify">Cancel</button>
+				<button id="btnVerify">Add</button>
+			</div>
+		</div>
+		<div id="collectionError" class="modal">
+			<h3>Error</h3>
+			<p>Could not parse/add puzzle collection.</p>
+			<div class="btns">
+				<button id="btnCancelError">Cancel</button>
+			</div>
+		</div>
 	</div>
 </body>
 

@@ -18,6 +18,22 @@ const elChkAnimated = document.getElementById('chkAnimated');
 const elPTitle = document.getElementById('ptitle');
 const elPAuth = document.getElementById('pauth');
 
+
+const elAAdd = document.getElementById('aAdd');
+
+const elBtnCancelParse = document.getElementById('btnCancelParse');
+const elBtnCancelVerify = document.getElementById('btnCancelVerify');
+const elBtnCancelError = document.getElementById('btnCancelError');
+
+const elBtnParse = document.getElementById('btnParse');
+const elBtnVerify = document.getElementById('btnVerify');
+
+const elTACollection = document.getElementById('taCollection');
+const elITTitle = document.getElementById('itTitle');
+const elITAuthor = document.getElementById('itAuthor');
+const elSpanNumPuzzles = document.getElementById('spanNumPuzzles');
+
+
 // Gameplay
 let puzzle;
 let view;
@@ -34,7 +50,7 @@ pm.onselect = function (collection, puzzleIdx) {
         }
     }
 
-    if (p.auth) {
+    if (p.a) {
         elPAuth.innerHTML = p.a;
     }
     else {
@@ -69,7 +85,7 @@ let restart = function() {
     }
 };
 
-window.addEventListener('keydown', function (evt) {
+function sokoKeypress(evt) {
     if (!puzzle || !view) {
         return;
     }
@@ -108,7 +124,9 @@ window.addEventListener('keydown', function (evt) {
             pm.scoreSelected(puzzle.numPushes(), puzzle.numMoves());
         }
     }
-});
+}
+
+window.addEventListener('keydown', sokoKeypress);
 
 window.addEventListener('resize', function () {
     if (view) {
@@ -130,6 +148,65 @@ elChkAnimated.addEventListener('change', function(evt) {
 elChkAnimated.checked = SokobanView.getAnimated();
 
 
+function clear() {
+    elBody.classList.remove('mod_collectionParse');
+    elBody.classList.remove('mod_collectionVerify');
+    elBody.classList.remove('mod_collectionError');
+    elBody.classList.remove('shade');
+}
+
+function resume() {
+    clear();
+    elTACollection.value = '';
+    elSpanNumPuzzles.innerHTML = '0';
+    elITTitle.value = '';
+    elITAuthor.value = '';
+    window.addEventListener('keydown', sokoKeypress);
+}
+
+elAAdd.addEventListener('click', function() {
+    window.removeEventListener('keydown', sokoKeypress);
+    elBody.classList.add('shade');
+    elBody.classList.add('mod_collectionParse');
+});
+
+elBtnCancelParse.addEventListener('click', resume);
+elBtnCancelVerify.addEventListener('click', resume);
+elBtnCancelError.addEventListener('click', resume);
+
+let col;
+elBtnParse.addEventListener('click', function() {
+    col = sokParse(elTACollection.value);
+    if (!col || !col.p.length) {
+        clear();
+        elBody.classList.add('shade');
+        elBody.classList.add('mod_collectionError');
+        return;
+    }
+    elSpanNumPuzzles.innerHTML = col.p.length;
+    elITTitle.value = col.t;
+    elITAuthor.value = col.a;
+    clear();
+    elBody.classList.add('shade');
+    elBody.classList.add('mod_collectionVerify');
+});
+
+elBtnVerify.addEventListener('click', function() {
+    if (!elITTitle.value) {
+        elITTitle.classList.add('error');
+        return;
+    }
+    col.t = elITTitle.value;
+    col.a = elITAuthor.value;
+    let result = pm.addCollection(col);
+    if (!result) {
+        clear();
+        elBody.classList.add('shade');
+        elBody.classList.add('mod_collectionError');
+        return;
+    }
+    resume();
+});
 
 // Begin
 pm.startLastPuzzle();

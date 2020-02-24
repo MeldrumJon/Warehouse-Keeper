@@ -36,6 +36,34 @@ button:hover {
 input, label {
 	vertical-align: baseline;
 }
+textarea {
+	display:block;
+	width: 100%;
+	font: 100%/1 monospace;
+	padding: 0.2rem;
+	margin: 0.4rem 0;
+	box-sizing: border-box;
+}
+p {
+	margin: 0.4rem 0 0.4rem 0;
+	line-height: 1.5;
+}
+input[type="text"] {
+	padding: 0.1rem;
+	margin: 0.2rem;
+}
+input.error {
+	background: #fdd;
+}
+
+a {
+	color: #00a3eb;
+	text-decoration: none;
+}
+a:hover {
+	color: #AC53FD;
+	text-decoration: underline;
+}
 
 /* Layout */
 
@@ -200,3 +228,37 @@ body.hideList #btnToggleList span::before { content: '▸'; }
 #flex label {
 	display: block;
 }
+
+#shade {
+	/* display: none; */
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	width: 100%;
+	height: 100%;
+	justify-content: center;
+	align-items: center;
+	z-index: 100;
+	background: rgba(0, 0, 0, 0.9);
+	display: none;
+}
+body.shade #shade {
+	display: flex;
+}
+
+.modal {
+	max-height: 100%;
+	padding: 0.8rem;
+	z-index: 200;
+	background: #444;
+	display: none;
+}
+.modal div.btns {
+	text-align: right;
+}
+
+body.mod_collectionParse #collectionParse { display: block; }
+body.mod_collectionVerify #collectionVerify { display: block; }
+body.mod_collectionError #collectionError { display: block; }
