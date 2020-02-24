@@ -3,6 +3,7 @@ import PuzzleManager from './PuzzleManager.js';
 import Sokoban from './Sokoban.js';
 import SokobanView from './SokobanView.js';
 import sokParse from './sokParse.js';
+import Touch from './Touch.js';
 
 // Elements
 const elBody = document.getElementById('warehouse_keeper_game');
@@ -125,8 +126,47 @@ function sokoKeypress(evt) {
         }
     }
 }
+function sokoSwipe(dir) {
+    if (!puzzle || !view) {
+        return;
+    }
+
+    let mObj;
+    if (dir === 'l') {
+        mObj = puzzle.move('l');
+    }
+    else if (dir === 'u') {
+        mObj = puzzle.move('u');
+    }
+    else if (dir === 'r') {
+        mObj = puzzle.move('r');
+    }
+    else if (dir === 'd') {
+        mObj = puzzle.move('d');
+    }
+
+    if (mObj) {
+        view.update(mObj);
+        if (puzzle.completed()) {
+            pm.scoreSelected(puzzle.numPushes(), puzzle.numMoves());
+        }
+    }
+};
 
 window.addEventListener('keydown', sokoKeypress);
+let touch = new Touch(elPuzzle);
+touch.onSwipeUp = function() {
+    sokoSwipe('u');
+};
+touch.onSwipeDown = function() {
+    sokoSwipe('d');
+};
+touch.onSwipeLeft = function() {
+    sokoSwipe('l');
+};
+touch.onSwipeRight = function() {
+    sokoSwipe('r');
+};
 
 window.addEventListener('resize', function () {
     if (view) {

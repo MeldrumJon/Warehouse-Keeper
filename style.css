@@ -84,7 +84,7 @@ a:hover {
 	left: 0;
 	z-index: 2;
 	font-family: Helvetica, Arial, sans-serif;
-	font-size: 0.85rem;
+	font-size: 0.9rem;
 	background: rgba(33, 36, 43, 0.9);
 	overflow-y: auto;
 }
@@ -143,7 +143,12 @@ span.stats {
 	text-align: right;
 }
 span.author {
+	text-align: right;
 	padding-left: 0.4rem;
+}
+span.title {
+	padding-left: 0.85em;
+	text-indent: -0.85em;
 }
 ul.collections span.pack:hover { cursor: pointer; }
 ul.collections span.pack:hover span.title::before { color: #00a3eb; }
